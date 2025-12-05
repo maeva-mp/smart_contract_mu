@@ -1,0 +1,140 @@
+SOFTWARE DEVELOPMENT AGREEMENT
+
+This Agreement is made on 10th March 2024
+
+BETWEEN:
+Innovate Digital Solutions Ltd
+Registered Office: 5th Floor, Newton Tower, Ebene, Mauritius
+Company Number: C17089012
+(hereinafter referred to as "the Developer")
+
+AND:
+Phoenix Retail Group Ltd
+Registered Office: Phoenix Mall, Pont Fer, Phoenix, Mauritius
+Company Number: C11045678
+(hereinafter referred to as "the Client")
+
+BACKGROUND:
+The Client wishes to engage the Developer to design, develop, and deliver a custom e-commerce platform and inventory management system as described in this Agreement.
+
+1. SCOPE OF WORK
+1.1 The Developer shall design, develop, test, and deliver:
+    (a) E-commerce website with integrated payment gateway (MCB Juice, MyT Money)
+    (b) Mobile applications for iOS and Android platforms
+    (c) Inventory management system with barcode scanning
+    (d) Administrative dashboard with reporting and analytics
+    (e) Integration with Client's existing ERP system
+1.2 Detailed functional specifications are set out in Schedule A.
+1.3 Any work not specifically included in Schedule A shall be considered out of scope.
+
+2. PROJECT TIMELINE
+2.1 The project shall be completed within eight (8) months from the Effective Date.
+2.2 Key milestones:
+    - Week 4: Requirements sign-off
+    - Week 8: Design approval
+    - Week 16: Phase 1 delivery (Website)
+    - Week 24: Phase 2 delivery (Mobile apps)
+    - Week 28: User acceptance testing
+    - Week 32: Go-live
+2.3 Delays caused by the Client (including delayed feedback or approvals) shall automatically extend the timeline by an equivalent period.
+
+3. FEES AND PAYMENT
+3.1 Total Project Fee: MUR 2,500,000 (Two Million Five Hundred Thousand Mauritian Rupees)
+3.2 Payment Schedule:
+    - 20% upon contract signing: MUR 500,000
+    - 20% upon design approval: MUR 500,000
+    - 30% upon Phase 1 delivery: MUR 750,000
+    - 20% upon Phase 2 delivery: MUR 500,000
+    - 10% upon final acceptance: MUR 250,000
+3.3 Payment Terms: Invoices are due within 14 days of issue.
+3.4 Late Payment: Interest at 1.5% per month shall apply to overdue amounts.
+3.5 The Developer reserves the right to suspend work if any payment is overdue by more than 30 days.
+
+4. CHANGE REQUESTS
+4.1 Any changes to the scope must be submitted in writing by the Client.
+4.2 The Developer shall provide a written quotation for additional work within 5 business days.
+4.3 No change shall be implemented until the Client provides written approval of the quotation.
+4.4 Changes may affect the project timeline and total fees.
+
+5. INTELLECTUAL PROPERTY
+5.1 Upon receipt of full payment, the Client shall own all rights to:
+    (a) Custom source code developed specifically for this project
+    (b) Custom designs, graphics, and user interfaces
+    (c) Project documentation
+5.2 The Developer shall retain ownership of:
+    (a) Pre-existing code, libraries, and frameworks
+    (b) Generic tools and utilities
+    (c) Third-party software and components
+5.3 The Developer grants the Client a perpetual, non-exclusive, royalty-free license to use the Developer's retained components solely in connection with the deliverables.
+
+6. WARRANTIES
+6.1 The Developer warrants that:
+    (a) The software shall perform substantially in accordance with the specifications for a period of 12 months from final acceptance
+    (b) The software shall be free from material defects
+    (c) The deliverables shall not infringe any third-party intellectual property rights
+6.2 The Developer shall correct any defects reported during the warranty period at no additional cost.
+6.3 EXCEPT AS EXPRESSLY STATED, THE DEVELOPER MAKES NO OTHER WARRANTIES, EXPRESS OR IMPLIED, INCLUDING ANY WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+7. SUPPORT AND MAINTENANCE
+7.1 The Developer shall provide free support for 3 months following final acceptance.
+7.2 Support includes bug fixes, minor updates, and technical assistance via email and phone.
+7.3 After the free support period, support and maintenance services are available at MUR 50,000 per month.
+7.4 Major enhancements and new features shall be quoted separately.
+
+8. CONFIDENTIALITY
+8.1 Each party shall maintain the confidentiality of the other party's proprietary and confidential information.
+8.2 Confidential information includes source code, business processes, customer data, and financial information.
+8.3 Neither party shall disclose confidential information to third parties without prior written consent.
+8.4 This obligation shall survive termination for a period of five (5) years.
+
+9. DATA PROTECTION
+9.1 The Developer shall comply with the Data Protection Act 2017 in handling any personal data.
+9.2 Personal data shall be processed only as necessary for the project and in accordance with Client instructions.
+9.3 The Developer shall implement appropriate technical and organizational security measures.
+
+10. LIMITATION OF LIABILITY
+10.1 The Developer's total liability under this Agreement shall not exceed the total fees actually paid by the Client.
+10.2 In no event shall either party be liable for indirect, incidental, special, or consequential damages, including loss of profits, revenue, or data.
+10.3 These limitations shall not apply to breaches of confidentiality, intellectual property infringement, or gross negligence.
+
+11. INDEMNIFICATION
+11.1 The Developer shall indemnify the Client against any third-party claims alleging that the deliverables infringe intellectual property rights.
+11.2 The Client shall indemnify the Developer against claims arising from Client-provided content, data, or materials.
+
+12. TERMINATION
+12.1 Either party may terminate this Agreement if the other party materially breaches and fails to cure such breach within 30 days of written notice.
+12.2 The Client may terminate for convenience by giving 30 days written notice.
+12.3 Upon termination:
+    (a) The Client shall pay for all work completed to the date of termination
+    (b) The Developer shall deliver all completed and in-progress work product
+    (c) Each party shall return the other's confidential information
+
+13. FORCE MAJEURE
+13.1 Neither party shall be liable for delays or failures due to circumstances beyond reasonable control, including natural disasters, war, strikes, or government actions.
+13.2 The affected party shall provide notice within 48 hours and use reasonable efforts to resume performance.
+13.3 If force majeure continues for more than 60 days, either party may terminate without liability.
+
+14. DISPUTE RESOLUTION
+14.1 The parties shall first attempt to resolve disputes through good faith negotiation.
+14.2 If negotiation fails, disputes shall be submitted to mediation.
+14.3 If mediation fails within 30 days, disputes shall be resolved by arbitration under the rules of the Mauritius International Arbitration Centre.
+
+15. GENERAL
+15.1 This Agreement constitutes the entire understanding between the parties.
+15.2 No amendment shall be effective unless in writing and signed by both parties.
+15.3 This Agreement shall be governed by the laws of Mauritius.
+15.4 The parties submit to the jurisdiction of the Courts of Mauritius.
+
+EXECUTED as of the date first written above.
+
+For Innovate Digital Solutions Ltd:
+
+_____________________________
+Mr. Keshav Doorgakant
+Chief Executive Officer
+
+For Phoenix Retail Group Ltd:
+
+_____________________________
+Mrs. Nadia Doobree
+Chief Operating Officer

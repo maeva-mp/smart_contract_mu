@@ -1,0 +1,113 @@
+SERVICE LEVEL AGREEMENT
+
+This Service Level Agreement is entered into on 1st February 2024
+
+BETWEEN:
+CloudHost Mauritius Ltd
+Registered Office: Nexteracom Tower, Ebene, Mauritius
+Company Number: C15067234
+(hereinafter referred to as "the Service Provider")
+
+AND:
+MauBank Insurance Co. Ltd
+Registered Office: 25 Sir William Newton Street, Port Louis, Mauritius
+Company Number: C08012345
+(hereinafter referred to as "the Client")
+
+1. SERVICES
+1.1 The Service Provider shall provide the following cloud hosting services:
+    (a) Dedicated server infrastructure with 16 CPU cores, 64GB RAM, 2TB SSD storage
+    (b) 24/7 system monitoring and technical support
+    (c) Daily automated data backup with 30-day retention
+    (d) Disaster recovery services
+    (e) Firewall and security management
+    (f) SSL certificate provisioning and renewal
+
+2. SERVICE LEVELS
+2.1 Uptime Guarantee: The Service Provider guarantees 99.9% monthly uptime.
+2.2 Uptime is calculated as: (Total minutes - Downtime minutes) / Total minutes x 100
+2.3 Scheduled maintenance windows (Sundays 02:00-05:00) are excluded from uptime calculations.
+2.4 The Service Provider shall provide 72 hours advance notice for scheduled maintenance.
+
+3. SERVICE CREDITS
+3.1 If monthly uptime falls below guaranteed levels, the Client shall receive service credits:
+    - 99.0% to 99.9% uptime: 10% credit of monthly fee
+    - 95.0% to 99.0% uptime: 25% credit of monthly fee
+    - Below 95.0% uptime: 50% credit of monthly fee
+3.2 Maximum credit in any month shall not exceed 50% of the monthly fee.
+3.3 Credits must be claimed in writing within 30 days of the incident.
+3.4 Credits shall be applied to future invoices and are not redeemable for cash.
+
+4. SUPPORT RESPONSE TIMES
+4.1 The Service Provider shall respond to support requests as follows:
+    - Critical (service down): Response within 15 minutes, resolution target 4 hours
+    - High (major feature affected): Response within 1 hour, resolution target 8 hours
+    - Medium (minor feature affected): Response within 4 hours, resolution target 24 hours
+    - Low (general inquiries): Response within 8 hours, resolution target 72 hours
+4.2 Support is available 24/7 via phone, email, and online portal.
+
+5. FEES AND PAYMENT
+5.1 Monthly Service Fee: MUR 150,000 (exclusive of VAT)
+5.2 Payment Terms: Net 30 days from invoice date
+5.3 Late Payment Interest: 1.5% per month on overdue amounts
+5.4 The Service Provider reserves the right to suspend services if payment is overdue by more than 45 days.
+5.5 Annual fee adjustments shall not exceed 5% and require 90 days written notice.
+
+6. DATA AND SECURITY
+6.1 All Client data shall be stored on servers located in Mauritius.
+6.2 The Service Provider shall implement industry-standard security measures including encryption, access controls, and intrusion detection.
+6.3 The Service Provider shall conduct annual security audits and provide reports to the Client.
+6.4 The Service Provider shall comply with the Data Protection Act 2017.
+
+7. BACKUP AND DISASTER RECOVERY
+7.1 Daily automated backups shall be performed between 01:00 and 03:00.
+7.2 Backup data shall be stored at a geographically separate facility.
+7.3 Recovery Point Objective (RPO): Maximum 4 hours of data loss.
+7.4 Recovery Time Objective (RTO): Maximum 8 hours to restore full service.
+7.5 Disaster recovery testing shall be conducted quarterly.
+
+8. CONFIDENTIALITY
+8.1 Each party shall maintain the confidentiality of the other party's proprietary information.
+8.2 Confidential information shall not be disclosed to third parties without prior written consent.
+8.3 This obligation shall survive termination of this Agreement for a period of five (5) years.
+
+9. LIMITATION OF LIABILITY
+9.1 Neither party shall be liable for any indirect, incidental, special, or consequential damages.
+9.2 The Service Provider's total liability under this Agreement shall not exceed the fees paid by the Client in the twelve (12) months preceding the claim.
+9.3 This limitation shall not apply to breaches of confidentiality, gross negligence, or willful misconduct.
+
+10. TERM AND TERMINATION
+10.1 Initial Term: Three (3) years from the commencement date.
+10.2 Renewal: This Agreement shall automatically renew for successive one-year terms unless either party gives 90 days written notice of non-renewal.
+10.3 Termination for Convenience: Either party may terminate with 90 days written notice after the initial term.
+10.4 Termination for Cause: Either party may terminate immediately if the other party materially breaches this Agreement and fails to cure such breach within 30 days of written notice.
+10.5 Upon termination, the Service Provider shall assist in migrating Client data to a new provider at standard hourly rates.
+
+11. FORCE MAJEURE
+11.1 Neither party shall be liable for failure to perform due to causes beyond reasonable control, including natural disasters, war, terrorism, government actions, or widespread power or telecommunications failures.
+11.2 The affected party shall provide prompt notice and use reasonable efforts to resume performance.
+11.3 If force majeure continues for more than 60 days, either party may terminate without liability.
+
+12. DISPUTE RESOLUTION
+12.1 The parties shall first attempt to resolve disputes through good faith negotiation.
+12.2 If negotiation fails within 30 days, disputes shall be submitted to mediation.
+12.3 If mediation fails, disputes shall be resolved by arbitration under the rules of the Mauritius International Arbitration Centre.
+
+13. GENERAL
+13.1 This Agreement constitutes the entire understanding between the parties.
+13.2 Amendments must be in writing and signed by both parties.
+13.3 This Agreement shall be governed by the laws of Mauritius.
+
+EXECUTED as of the date first written above.
+
+For CloudHost Mauritius Ltd:
+
+_____________________________
+Mr. Jean-Pierre Lagesse
+Chief Operating Officer
+
+For MauBank Insurance Co. Ltd:
+
+_____________________________
+Mr. Sunil Doorgakant
+Chief Information Officer

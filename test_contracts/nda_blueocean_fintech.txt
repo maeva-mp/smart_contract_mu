@@ -1,0 +1,85 @@
+CONFIDENTIALITY AND NON-DISCLOSURE AGREEMENT
+
+This Agreement is made on 15th January 2024
+
+BETWEEN:
+BlueOcean Fintech Ltd
+Registered Office: Tower A, 5th Floor, Bank Street, Port Louis, Mauritius
+Company Number: C14078956
+(hereinafter referred to as "the Disclosing Party")
+
+AND:
+DataSecure Consulting Ltd
+Registered Office: 78 St Georges Street, Port Louis, Mauritius
+Company Number: C16023489
+(hereinafter referred to as "the Receiving Party")
+
+BACKGROUND:
+The parties wish to explore a potential business collaboration regarding the development of a mobile banking platform. In connection with this purpose, the Disclosing Party may share certain confidential and proprietary information with the Receiving Party.
+
+NOW THEREFORE, the parties agree as follows:
+
+1. CONFIDENTIAL INFORMATION
+1.1 "Confidential Information" means all information disclosed by the Disclosing Party, whether orally, in writing, or by any other means, including but not limited to:
+    (a) Technical data, trade secrets, know-how, and research
+    (b) Business plans, strategies, and financial information
+    (c) Customer and supplier lists, pricing, and marketing plans
+    (d) Software source code, algorithms, and system architecture
+    (e) Any information marked or identified as "Confidential" or "Proprietary"
+
+2. OBLIGATIONS
+2.1 The Receiving Party agrees to:
+    (a) Hold all Confidential Information in strict confidence
+    (b) Not disclose Confidential Information to any third party without prior written consent
+    (c) Use at least the same degree of care to protect Confidential Information as it uses for its own confidential information, but in no event less than reasonable care
+    (d) Limit access to Confidential Information to employees and agents who have a need to know
+    (e) Use Confidential Information solely for evaluating the potential business relationship
+
+3. EXCEPTIONS
+3.1 These obligations shall not apply to information that:
+    (a) Is or becomes publicly available through no fault of the Receiving Party
+    (b) Was already known to the Receiving Party prior to disclosure
+    (c) Is independently developed by the Receiving Party without use of Confidential Information
+    (d) Is rightfully obtained from a third party without restriction
+    (e) Is required to be disclosed by law or court order, provided the Receiving Party gives prompt notice
+
+4. RETURN OF INFORMATION
+4.1 Upon written request or termination of discussions, the Receiving Party shall promptly:
+    (a) Return all documents and materials containing Confidential Information
+    (b) Destroy all copies, notes, and summaries of Confidential Information
+    (c) Provide written certification of such return or destruction
+
+5. NO LICENSE
+5.1 Nothing in this Agreement grants the Receiving Party any rights or license to use any intellectual property of the Disclosing Party.
+5.2 All Confidential Information remains the sole property of the Disclosing Party.
+
+6. TERM
+6.1 This Agreement shall remain in effect for a period of three (3) years from the date of execution.
+6.2 The confidentiality obligations shall survive termination for an additional period of two (2) years.
+
+7. REMEDIES
+7.1 The Receiving Party acknowledges that any breach of this Agreement may cause irreparable harm to the Disclosing Party.
+7.2 In the event of breach, the Disclosing Party shall be entitled to seek injunctive relief in addition to any other remedies available at law.
+7.3 The Receiving Party shall indemnify the Disclosing Party against any losses arising from unauthorized disclosure.
+
+8. GENERAL
+8.1 This Agreement constitutes the entire understanding between the parties regarding confidentiality.
+8.2 No amendment shall be effective unless in writing and signed by both parties.
+8.3 This Agreement shall be governed by the laws of Mauritius.
+8.4 Any disputes shall be resolved by the Courts of Mauritius.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
+
+For BlueOcean Fintech Ltd:
+
+_____________________________
+Mr. Vikram Doobree
+Chief Executive Officer
+Date: 15th January 2024
+
+For DataSecure Consulting Ltd:
+
+_____________________________
+Mrs. Anushka Beeharry
+Managing Director
+Date: 15th January 2024
