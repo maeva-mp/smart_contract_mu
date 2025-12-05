@@ -1,5 +1,4 @@
 ##AI-Powered Legal Contract Analysis System (for Mauritius)
-
 # Imports
 import os
 import io
@@ -8,10 +7,23 @@ import json
 import pandas as pd
 import numpy as np
 import altair as alt
+import streamlit as st
+
+# Set page config
+st.set_page_config(page_title="SmartContract MU", layout="wide", page_icon="⚖️")
+
+# Set cache directories 
+from pathlib import Path
+CACHE_DIR = Path.home() / ".cache" / "huggingface"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+os.environ['TRANSFORMERS_CACHE'] = str(CACHE_DIR)
+os.environ['SENTENCE_TRANSFORMERS_HOME'] = str(CACHE_DIR)
+os.environ['HF_HOME'] = str(CACHE_DIR)
+
+# Imports
 from sklearn.metrics.pairwise import cosine_similarity
 from datetime import datetime, timedelta
 from typing import List, Tuple, Dict
-import streamlit as st
 from PyPDF2 import PdfReader
 import docx
 from sentence_transformers import SentenceTransformer
@@ -41,6 +53,10 @@ METADATA_FILE = "metadata.txt"
 METRICS_FILE = "metrics.json"
 GROUND_TRUTH_FILE = "ground_truth.json"
 
+# Initialize session state for lite mode
+if 'LITE_MODE' not in st.session_state:
+    st.session_state.LITE_MODE = False
+
 #reads text cases from a JSON file/writes new ones to that file
 def load_ground_truth(path: str = GROUND_TRUTH_FILE) -> Dict:
     """Load ground truth query-document pairs"""
@@ -67,7 +83,6 @@ save_ground_truth_cases = save_ground_truth
 # Contract-specific risk keywords
 RISK_KEYWORDS = {
     "critical": [
-        # Truly dangerous clauses
         "unlimited liability",
         "jointly and severally liable",
         "personal guarantee",
@@ -87,7 +102,6 @@ RISK_KEYWORDS = {
         "unlimited and joint"
     ],
     "high": [
-        # Risky but common clauses
         "indemnify",
         "indemnification",
         "hold harmless",
@@ -107,7 +121,6 @@ RISK_KEYWORDS = {
         "waive any right"
     ],
     "medium": [
-        # Standard contract terms
         "termination notice",
         "notice period",
         "payment terms",
@@ -139,7 +152,6 @@ MAURITIUS_COMPLIANCE = {
     ]
 }
 
-#Mauritius Civil Code Articles Reference 
 # Mauritius Civil Code Articles Reference (Enhanced)
 CIVIL_CODE_ARTICLES = {
     "1108": {
@@ -419,15 +431,27 @@ GENERAL_RECOMMENDATIONS = {
 
 # Text Extraction
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    reader = PdfReader(io.BytesIO(file_bytes))
-    return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+    try:
+        reader = PdfReader(io.BytesIO(file_bytes))
+        return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+    except Exception as e:
+        st.error(f"❌ PDF extraction failed: {e}")
+        return ""
 
 def extract_text_from_docx(file_bytes: bytes) -> str:
-    doc = docx.Document(io.BytesIO(file_bytes))
-    return "\n".join([p.text for p in doc.paragraphs if p.text and not p.text.isspace()])
+    try:
+        doc = docx.Document(io.BytesIO(file_bytes))
+        return "\n".join([p.text for p in doc.paragraphs if p.text and not p.text.isspace()])
+    except Exception as e:
+        st.error(f"❌ DOCX extraction failed: {e}")
+        return ""
 
 def extract_text_from_txt(file_bytes: bytes) -> str:
-    return file_bytes.decode(errors="ignore")
+    try:
+        return file_bytes.decode(errors="ignore")
+    except Exception as e:
+        st.error(f"❌ TXT extraction failed: {e}")
+        return ""
 
 def clean_text(text: str) -> str:
     text = re.sub(r'\s+', ' ', text)
@@ -448,56 +472,53 @@ def chunk_text(text: str, approx_tokens: int = CHUNK_TOKENS, overlap: int = 50) 
     return chunks
 
 #-----------------------------
-# Load NER Model
+# Load NER Model - FIXED VERSION
 @st.cache_resource(show_spinner=False)
 def load_spacy_model():
     """Load spaCy model with automatic download if not present"""
-    import subprocess
-    import sys
-    
-    model_name = "en_core_web_sm"
-    
     try:
-        nlp = spacy.load(model_name)
-        st.success("✅ SpaCy model loaded from cache")
+        from spacy.cli import download
         
-    except OSError:
-        with st.spinner(f"📥 Downloading {model_name} (one-time, ~12MB)..."):
-            try:
-                subprocess.check_call(
-                    [sys.executable, "-m", "spacy", "download", model_name],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                nlp = spacy.load(model_name)
-                st.success("✅ SpaCy model downloaded and loaded")
-                
-            except Exception as e:
-                st.error(f"❌ Failed to download spaCy model: {e}")
-                st.warning("⚠️ Running without entity extraction features")
-                return None
-    
-    # Add entity ruler patterns
-    if nlp is not None:
+        model_name = "en_core_web_sm"
+        
         try:
-            if "entity_ruler" not in nlp.pipe_names:
-                ruler = nlp.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
-
-                patterns = [
-                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "liability"}]},
-                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "liabilities"}]},
-                    {"label": "LEGAL_TERM", "pattern": [{"TEXT": {"REGEX": "(?i)indemnif.*"}}]},
-                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "hold"}, {"LOWER": "harmless"}]},
-                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "force"}, {"LOWER": "majeure"}]},
-                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "severance"}, {"LOWER": "allowance"}]},
-                    {"label": "LEGAL_TERM", "pattern": [{"TEXT": {"REGEX": "(?i)waiv.*"}}]},
-                ]
-
-                ruler.add_patterns(patterns)
-        except Exception as e:
-            st.warning(f"⚠️ Could not add entity ruler: {e}")
-    
-    return nlp
+            # Try to load the model
+            nlp = spacy.load(model_name)
+        except OSError:
+            # Model not found - download it
+            with st.spinner(f"📥 Downloading {model_name} (one-time, ~12MB)..."):
+                try:
+                    download(model_name)
+                    nlp = spacy.load(model_name)
+                except Exception as e:
+                    st.error(f"❌ Failed to download spaCy model: {e}")
+                    return None
+        
+        # Add entity ruler patterns
+        if nlp is not None:
+            try:
+                if "entity_ruler" not in nlp.pipe_names:
+                    ruler = nlp.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
+                    
+                    patterns = [
+                        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "liability"}]},
+                        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "liabilities"}]},
+                        {"label": "LEGAL_TERM", "pattern": [{"TEXT": {"REGEX": "(?i)indemnif.*"}}]},
+                        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "hold"}, {"LOWER": "harmless"}]},
+                        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "force"}, {"LOWER": "majeure"}]},
+                        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "severance"}, {"LOWER": "allowance"}]},
+                        {"label": "LEGAL_TERM", "pattern": [{"TEXT": {"REGEX": "(?i)waiv.*"}}]},
+                    ]
+                    
+                    ruler.add_patterns(patterns)
+            except Exception as e:
+                st.warning(f"⚠️ Could not add entity ruler: {e}")
+        
+        return nlp
+        
+    except Exception as e:
+        st.error(f"❌ SpaCy loading failed: {e}")
+        return None
 
 #-----------------------------------------------
 # Contract Analysis Functions
@@ -519,7 +540,6 @@ MAURITIUS_LOCATIONS = {
 
 # Words that should NEVER be organizations
 EXCLUDED_ORG_WORDS = {
-    # Generic contract parties
     "employer", "employee", "tenant", "landlord", "borrower", "lender",
     "guarantor", "client", "service provider", "developer", "partner",
     "the employer", "the employee", "the tenant", "the landlord",
@@ -528,29 +548,19 @@ EXCLUDED_ORG_WORDS = {
     "the disclosing party", "the receiving party", "disclosing party", 
     "receiving party", "party a", "party b", "party c",
     "the parties", "parties", "party",
-    
-    # Generic words
     "agreement", "contract", "the agreement", "the contract",
     "confidential information", "confidentiality", "information",
     "court", "courts", "the courts", "the courts of mauritius",
     "courts of mauritius", "government", "the government",
     "the government of mauritius", "government of mauritius",
-    
-    # Job titles
     "human resources", "managing director", "chief executive officer",
     "director", "manager", "ceo", "cto", "cfo", "coo",
     "chief operating officer", "chief technology officer",
-    
-    # Section headers and legal terms
     "overtime", "maternity", "paternity", "maternity/paternity",
     "confidentiality", "termination", "remuneration", "indemnification",
     "working hours", "annual leave", "sick leave", "probation",
     "no license", "license", "liability", "warranties",
-    
-    # Single short words
     "the", "a", "an", "and", "or", "of", "to", "for",
-    
-    # Other common false positives
     "nothing", "section", "article", "clause"
 }
 
@@ -565,122 +575,108 @@ EXCLUDED_PERSON_WORDS = {
 }
 
 def extract_entities(text: str, nlp) -> Dict[str, List[str]]:
-    """
-    Extract dates, money, organizations, and people using spaCy NER.
-    Includes heavy filtering to remove common false positives.
-    """
+    """Extract dates, money, organizations, and people using spaCy NER with filtering"""
+    
     if nlp is None:
         return {"dates": [], "money": [], "orgs": [], "persons": []}
     
-    # Truncate text if it exceeds the maximum allowed length
-    if len(text) > MAX_NLP_CHARS:
-        st.warning(f"⚠️ Text truncated to {MAX_NLP_CHARS:,} chars for entity extraction")
-        text = text[:MAX_NLP_CHARS]
-    
-    doc = nlp(text)
+    try:
+        # Truncate text if it exceeds the maximum allowed length
+        if len(text) > MAX_NLP_CHARS:
+            st.info(f"ℹ️ Text truncated to {MAX_NLP_CHARS:,} chars for entity extraction")
+            text = text[:MAX_NLP_CHARS]
+        
+        doc = nlp(text)
 
-    entities = {
-        "dates": [],
-        "money": [],
-        "orgs": [],
-        "persons": []
-    }
+        entities = {
+            "dates": [],
+            "money": [],
+            "orgs": [],
+            "persons": []
+        }
 
-    for ent in doc.ents:
-        ent_text = ent.text.strip()
-        ent_lower = ent_text.lower()
-        
-        # === BASIC FILTERS (apply to all) ===
-        # Skip empty or very short entities
-        if len(ent_text) < 3:
-            continue
-        
-        # Skip if ALL CAPS (section headers)
-        if ent_text.isupper() and len(ent_text) > 4:
-            continue
-        
-        # Skip if has unbalanced parentheses
-        if ent_text.count('(') != ent_text.count(')'):
-            continue
-        
-        # Skip if starts/ends with punctuation weirdly
-        if ent_text.startswith(')') or ent_text.endswith('('):
-            continue
-        if ent_text.startswith('.') or ent_text.startswith(','):
-            continue
+        for ent in doc.ents:
+            ent_text = ent.text.strip()
+            ent_lower = ent_text.lower()
             
-        # Skip section references like "5.1", "Section 27"
-        if any(ent_lower.startswith(p) for p in ['section ', 'article ', 'clause ', 'no ']):
-            continue
-
-        # === DATE ===
-        if ent.label_ == "DATE":
-            entities["dates"].append(ent_text)
-        
-        # === MONEY ===
-        elif ent.label_ == "MONEY":
-            entities["money"].append(ent_text)
-        
-        # === ORGANIZATION ===
-        elif ent.label_ == "ORG":
-            # Filter locations
-            if ent_lower in MAURITIUS_LOCATIONS:
-                continue
-            # Filter excluded words
-            if ent_lower in EXCLUDED_ORG_WORDS:
-                continue
-            # Filter if contains "Registered Office" or "Registration"
-            if "registered" in ent_lower or "registration" in ent_lower:
-                continue
-            # Filter entries ending with numbers (section refs)
-            if len(ent_text) > 2 and ent_text[-1].isdigit() and '.' in ent_text:
-                continue
-            # Filter single common words
-            if ent_lower in {"floor", "street", "road", "avenue", "tower", "building"}:
-                continue
-            # Must contain "ltd", "co", "inc", "llc" OR be a proper multi-word name
-            is_company = any(x in ent_lower for x in ["ltd", "co.", "inc", "llc", "limited", "corp"])
-            is_proper_name = ent_text[0].isupper() and " " not in ent_text and len(ent_text) > 3
-            is_multi_word_name = " " in ent_text and ent_text.split()[0][0].isupper()
-            
-            if is_company or is_proper_name or is_multi_word_name:
-                # Final check - not in excluded
-                if ent_lower not in EXCLUDED_ORG_WORDS:
-                    entities["orgs"].append(ent_text)
-        
-        # === PERSON ===
-        elif ent.label_ == "PERSON":
-            # Filter locations
-            if ent_lower in MAURITIUS_LOCATIONS:
-                continue
-            # Filter excluded words
-            if ent_lower in EXCLUDED_PERSON_WORDS:
-                continue
-            # Filter single word "Date", "Agreement", etc
-            if ent_lower in {"date", "agreement", "contract", "witness", "party"}:
-                continue
-            # A real person name usually has at least 2 parts OR is a clear first name
-            # Must start with capital letter
-            if not ent_text[0].isupper():
-                continue
-            # Filter out titles without names
-            if ent_lower in {"mr", "mrs", "ms", "dr", "mr.", "mrs.", "ms.", "dr."}:
+            # Basic filters
+            if len(ent_text) < 3:
                 continue
             
-            entities["persons"].append(ent_text)
+            if ent_text.isupper() and len(ent_text) > 4:
+                continue
+            
+            if ent_text.count('(') != ent_text.count(')'):
+                continue
+            
+            if ent_text.startswith(')') or ent_text.endswith('('):
+                continue
+            if ent_text.startswith('.') or ent_text.startswith(','):
+                continue
+                
+            if any(ent_lower.startswith(p) for p in ['section ', 'article ', 'clause ', 'no ']):
+                continue
 
-    # Remove duplicates while preserving order
-    for key in entities:
-        seen = set()
-        unique = []
-        for item in entities[key]:
-            item_lower = item.lower()
-            if item_lower not in seen:
-                seen.add(item_lower)
-                unique.append(item)
-        entities[key] = unique
+            # DATE
+            if ent.label_ == "DATE":
+                entities["dates"].append(ent_text)
+            
+            # MONEY
+            elif ent.label_ == "MONEY":
+                entities["money"].append(ent_text)
+            
+            # ORGANIZATION
+            elif ent.label_ == "ORG":
+                if ent_lower in MAURITIUS_LOCATIONS:
+                    continue
+                if ent_lower in EXCLUDED_ORG_WORDS:
+                    continue
+                if "registered" in ent_lower or "registration" in ent_lower:
+                    continue
+                if len(ent_text) > 2 and ent_text[-1].isdigit() and '.' in ent_text:
+                    continue
+                if ent_lower in {"floor", "street", "road", "avenue", "tower", "building"}:
+                    continue
+                
+                is_company = any(x in ent_lower for x in ["ltd", "co.", "inc", "llc", "limited", "corp"])
+                is_proper_name = ent_text[0].isupper() and " " not in ent_text and len(ent_text) > 3
+                is_multi_word_name = " " in ent_text and ent_text.split()[0][0].isupper()
+                
+                if is_company or is_proper_name or is_multi_word_name:
+                    if ent_lower not in EXCLUDED_ORG_WORDS:
+                        entities["orgs"].append(ent_text)
+            
+            # PERSON
+            elif ent.label_ == "PERSON":
+                if ent_lower in MAURITIUS_LOCATIONS:
+                    continue
+                if ent_lower in EXCLUDED_PERSON_WORDS:
+                    continue
+                if ent_lower in {"date", "agreement", "contract", "witness", "party"}:
+                    continue
+                if not ent_text[0].isupper():
+                    continue
+                if ent_lower in {"mr", "mrs", "ms", "dr", "mr.", "mrs.", "ms.", "dr."}:
+                    continue
+                
+                entities["persons"].append(ent_text)
 
-    return entities
+        # Remove duplicates while preserving order
+        for key in entities:
+            seen = set()
+            unique = []
+            for item in entities[key]:
+                item_lower = item.lower()
+                if item_lower not in seen:
+                    seen.add(item_lower)
+                    unique.append(item)
+            entities[key] = unique
+
+        return entities
+        
+    except Exception as e:
+        st.error(f"❌ Entity extraction error: {e}")
+        return {"dates": [], "money": [], "orgs": [], "persons": []}
 
 def detect_risk_level(text: str) -> Tuple[str, List[str], float]:
     """Detect risk level and matched keywords in contract text"""
@@ -752,7 +748,7 @@ def check_law_articles(text: str) -> Dict[str, List[Dict]]:
         else:
             # Check keywords
             keyword_matches = [kw for kw in article_info["keywords"] if kw in text_lower]
-            if len(keyword_matches) >= 2:  # Need at least 2 keyword matches
+            if len(keyword_matches) >= 2:
                 findings["civil_code"].append({
                     "article": article_num,
                     "title": article_info["title"],
@@ -769,7 +765,7 @@ def check_law_articles(text: str) -> Dict[str, List[Dict]]:
                 "text": section_info["text"]
             })
 
-    #Check Data Protection Act
+    # Check Data Protection Act
     for section, section_info in DATA_PROTECTION_ARTICLES.items():
         if any(kw in text_lower for kw in section_info["keywords"]):
             findings["data_protection"].append({
@@ -785,17 +781,7 @@ def generate_recommendations(
     law_articles: Dict[str, List[Dict]],
     risk_level: str
 ) -> Dict[str, List[str]]:
-    """
-    Generate actionable legal recommendations based on detected articles and risk level.
-    
-    Args:
-        text: Contract text
-        law_articles: Detected law articles from check_law_articles()
-        risk_level: Overall risk level (CRITICAL/HIGH/MEDIUM/LOW)
-    
-    Returns:
-        Dict with recommendations categorized by urgency
-    """
+    """Generate actionable legal recommendations"""
     recommendations = {
         "critical": [],
         "important": [],
@@ -803,7 +789,7 @@ def generate_recommendations(
         "general": []
     }
     
-    # Add general recommendations based on risk level
+    # Add general recommendations
     recommendations["general"] = GENERAL_RECOMMENDATIONS.get(risk_level, [])
     
     # Civil Code recommendations
@@ -812,7 +798,6 @@ def generate_recommendations(
         if article_num in LEGAL_RECOMMENDATIONS["civil_code"]:
             article_recs = LEGAL_RECOMMENDATIONS["civil_code"][article_num].get("detected", [])
             
-            # Categorize by urgency
             for rec in article_recs:
                 if "🚨" in rec or "URGENT" in rec or "CRITICAL" in rec:
                     recommendations["critical"].append(rec)
@@ -823,8 +808,6 @@ def generate_recommendations(
     
     # Check for missing critical articles
     text_lower = text.lower()
-    
-    # Check if Article 1108 elements are missing
     if not any(kw in text_lower for kw in ["consent", "capacity", "object", "cause"]):
         recommendations["critical"].extend(
             LEGAL_RECOMMENDATIONS["civil_code"]["1108"]["missing"]
@@ -852,18 +835,16 @@ def generate_recommendations(
                 else:
                     recommendations["advisable"].append(rec)
     
-    # Remove duplicates while preserving order
+    # Remove duplicates
     for key in recommendations:
         recommendations[key] = list(dict.fromkeys(recommendations[key]))
     
     return recommendations
 
-
 def extract_obligations(text: str, nlp) -> List[Dict]:
     """Extract key obligations, deadlines, and payment terms"""
     obligations = []
     
-    # Find sentences with obligation keywords
     obligation_keywords = ["shall", "must", "will", "agree to", "required to", "obligated"]
     deadline_keywords = ["within", "by", "before", "after", "days", "date"]
     payment_keywords = ["payment", "pay", "fee", "amount", "price", "cost"]
@@ -873,11 +854,9 @@ def extract_obligations(text: str, nlp) -> List[Dict]:
     for sentence in sentences:
         sentence_lower = sentence.lower()
         
-        # Check for obligations
         if any(kw in sentence_lower for kw in obligation_keywords):
             obligation_type = "General"
             
-            # Classify obligation type
             if any(kw in sentence_lower for kw in deadline_keywords):
                 obligation_type = "Deadline"
             elif any(kw in sentence_lower for kw in payment_keywords):
@@ -888,14 +867,13 @@ def extract_obligations(text: str, nlp) -> List[Dict]:
                 "type": obligation_type
             })
     
-    return obligations[:MAX_OBLIGATIONS_DISPLAY]  
+    return obligations[:MAX_OBLIGATIONS_DISPLAY]
 
 def calculate_deadline_warnings(dates: List[str]) -> List[Dict]:
     """Calculate time-bar warnings (3-year Mauritius Civil Code limitation)"""
     warnings = []
     
     for date_str in dates:
-        # Simple heuristic: look for year patterns
         year_match = re.search(r'\b(20\d{2})\b', date_str)
         if year_match:
             year = int(year_match.group(1))
@@ -911,7 +889,6 @@ def calculate_deadline_warnings(dates: List[str]) -> List[Dict]:
     
     return warnings
 
-# Risk colors function 
 def risk_color(level):
     """Return color code for risk level"""
     return {
@@ -920,7 +897,6 @@ def risk_color(level):
         "MEDIUM": "#3DC6C3",
         "LOW": "#3AC0DA"
     }.get(level, "#50E3C2")
-
 
 # Embeddings and FAISS management
 def build_faiss_index(embedding_dim: int) -> faiss.IndexFlatIP:
@@ -944,31 +920,32 @@ def load_metadata(path: str = METADATA_FILE) -> List[Tuple[str, int, str]]:
         return rows
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
-            doc_id, idx_s, text_safe = line.rstrip("\n").split("\t", 2)
-            text = text_safe.replace("\\n", "\n")
-            rows.append((doc_id, int(idx_s), text))
+            parts = line.rstrip("\n").split("\t", 2)
+            if len(parts) == 3:
+                doc_id, idx_s, text_safe = parts
+                text = text_safe.replace("\\n", "\n")
+                rows.append((doc_id, int(idx_s), text))
     return rows
 
 def calculate_precision_recall(
     retrieved_docs: List[str], 
     relevant_doc: str, 
     embedder, 
-    threshold: float = 0.5 
+    threshold: float = 0.5,
+    debug: bool = False
 ):
     """Calculate precision and recall using cosine similarity threshold"""
     
-    # Validation
     if not retrieved_docs or not relevant_doc.strip():
-        return 0.0, 0.0
+        return 0.0, 0.0, []
     
-    # Encode relevant doc once
     try:
         rel_vec = embedder.encode([relevant_doc], convert_to_numpy=True)
     except Exception as e:
-        st.error(f"❌ Error encoding relevant doc: {e}")
-        return 0.0, 0.0
+        if debug:
+            st.error(f"❌ Error encoding relevant doc: {e}")
+        return 0.0, 0.0, []
 
-    # Compare each retrieved doc
     matches = 0
     similarities = []
     valid_docs = 0
@@ -988,25 +965,23 @@ def calculate_precision_recall(
                 matches += 1
                 
         except Exception as e:
-            st.warning(f"⚠️ Error comparing doc: {e}")
+            if debug:
+                st.warning(f"⚠️ Error comparing doc: {e}")
             continue
     
-    # Debug output
-    if similarities:
+    if debug and similarities:
         st.write(f"📊 Similarities: {[f'{s:.3f}' for s in similarities]}")
         st.write(f"✓ Matches above {threshold}: {matches}/{valid_docs}")
         st.write(f"📈 Max similarity: {max(similarities):.3f}")
         st.write(f"📊 Avg similarity: {np.mean(similarities):.3f}")
     
-    # Calculate metrics
     if valid_docs == 0:
-        return 0.0, 0.0
+        return 0.0, 0.0, similarities
     
     precision = matches / valid_docs
-    recall = 1.0 if matches > 0 else 0.0  # Binary: found at least one match?
+    recall = 1.0 if matches > 0 else 0.0
     
-    return precision, recall
-
+    return precision, recall, similarities
 
 def calculate_f1(precision: float, recall: float) -> float:
     """Calculate F1 score"""
@@ -1014,12 +989,12 @@ def calculate_f1(precision: float, recall: float) -> float:
         return 0.0
     return 2 * (precision * recall) / (precision + recall)
 
-
 def calculate_mrr(
     results: List[Dict], 
     relevant_doc: str, 
     embedder, 
-    threshold: float = 0.5  # CHANGED FROM 0.75
+    threshold: float = 0.5,
+    debug: bool = False
 ) -> float:
     """Calculate MRR based on similarity rank"""
     
@@ -1029,7 +1004,8 @@ def calculate_mrr(
     try:
         rel_vec = embedder.encode([relevant_doc], convert_to_numpy=True)
     except Exception as e:
-        st.error(f"Error encoding for MRR: {e}")
+        if debug:
+            st.error(f"Error encoding for MRR: {e}")
         return 0.0
 
     for rank, result in enumerate(results, start=1):
@@ -1040,20 +1016,23 @@ def calculate_mrr(
             doc_vec = embedder.encode([result['text']], convert_to_numpy=True)
             sim = float(cosine_similarity(rel_vec, doc_vec)[0][0])
             
-            st.write(f"Rank {rank}: Similarity = {sim:.4f}")
+            if debug:
+                st.write(f"Rank {rank}: Similarity = {sim:.4f}")
             
             if sim >= threshold:
                 mrr = 1.0 / rank
-                st.success(f"✓ First match at rank {rank}, MRR = {mrr:.4f}")
+                if debug:
+                    st.success(f"✓ First match at rank {rank}, MRR = {mrr:.4f}")
                 return mrr
                 
         except Exception as e:
-            st.warning(f"Error at rank {rank}: {e}")
+            if debug:
+                st.warning(f"Error at rank {rank}: {e}")
             continue
     
-    st.warning(f"⚠️ No results above threshold {threshold}")
+    if debug:
+        st.warning(f"⚠️ No results above threshold {threshold}")
     return 0.0
-
 
 def calculate_map(
     results: List[Dict],
@@ -1062,19 +1041,7 @@ def calculate_map(
     threshold: float = 0.5,
     k: int = 5
 ) -> float:
-    """
-    Calculate Mean Average Precision @ K
-    
-    Args:
-        results: List of search results
-        relevant_doc: Ground truth document
-        embedder: Sentence transformer model
-        threshold: Similarity threshold
-        k: Consider top-k results
-    
-    Returns:
-        MAP@K score
-    """
+    """Calculate Mean Average Precision @ K"""
     
     if not results or not relevant_doc:
         return 0.0
@@ -1108,236 +1075,207 @@ def calculate_map(
     
     return precision_sum / relevant_count
 
-
-def keyword_overlap_score(text1: str, text2: str, min_word_length: int = 4) -> float:
-    """
-    Calculate keyword overlap between two texts (fallback metric)
-    
-    Args:
-        text1: First text
-        text2: Second text
-        min_word_length: Minimum word length to consider
-    
-    Returns:
-        Overlap score (0.0 to 1.0)
-    """
-    
-    # Extract meaningful words
-    words1 = set([
-        word.lower() for word in text1.split() 
-        if len(word) >= min_word_length and word.isalpha()
-    ])
-    
-    words2 = set([
-        word.lower() for word in text2.split() 
-        if len(word) >= min_word_length and word.isalpha()
-    ])
-    
-    if not words1 or not words2:
-        return 0.0
-    
-    # Jaccard similarity
-    intersection = len(words1 & words2)
-    union = len(words1 | words2)
-    
-    return intersection / union if union > 0 else 0.0
-
-
-def evaluate_retrieval_comprehensive(
-    query: str,
-    results: List[Dict],
-    relevant_doc: str,
-    embedder,
-    threshold: float = 0.5,
-    debug: bool = True
-) -> Dict[str, float]:
-    """
-    Comprehensive evaluation with multiple metrics
-    
-    Args:
-        query: Search query
-        results: Retrieved results
-        relevant_doc: Ground truth document
-        embedder: Sentence transformer model
-        threshold: Similarity threshold
-        debug: Show detailed output
-    
-    Returns:
-        Dictionary of all metrics
-    """
-    
-    if debug:
-        st.markdown(f"### 🔍 Evaluating Query: `{query}`")
-    
-    # Extract retrieved texts
-    retrieved_docs = [r.get('text', '') for r in results]
-    
-    # 1. Precision & Recall
-    precision, recall, similarities = calculate_precision_recall(
-        retrieved_docs, relevant_doc, embedder, threshold, debug
-    )
-    
-    # 2. F1 Score
-    f1 = calculate_f1(precision, recall)
-    
-    # 3. MRR
-    mrr = calculate_mrr(results, relevant_doc, embedder, threshold, debug)
-    
-    # 4. MAP@5
-    map_score = calculate_map(results, relevant_doc, embedder, threshold, k=5)
-    
-    # 5. Keyword overlap (fallback)
-    if similarities and max(similarities) < threshold:
-        # If semantic similarity failed, check keyword overlap
-        best_match = retrieved_docs[similarities.index(max(similarities))]
-        keyword_score = keyword_overlap_score(relevant_doc, best_match)
-        if debug:
-            st.info(f"💡 Keyword overlap score: {keyword_score:.3f}")
-    
-    metrics = {
-        'precision': precision,
-        'recall': recall,
-        'f1': f1,
-        'mrr': mrr,
-        'map@5': map_score,
-        'avg_similarity': np.mean(similarities) if similarities else 0.0,
-        'max_similarity': max(similarities) if similarities else 0.0
-    }
-    
-    if debug:
-        st.markdown("---")
-        st.markdown("### 📊 Final Metrics")
-        cols = st.columns(4)
-        cols[0].metric("Precision", f"{metrics['precision']:.3f}")
-        cols[1].metric("Recall", f"{metrics['recall']:.3f}")
-        cols[2].metric("F1", f"{metrics['f1']:.3f}")
-        cols[3].metric("MRR", f"{metrics['mrr']:.3f}")
-    
-    return metrics
-
-
-def calculate_ndcg(results: List[Dict], relevance_scores: Dict[str, float], k: int = 5) -> float:
-    """Calculate Normalized Discounted Cumulative Gain"""
-    dcg = 0.0
-    for i, result in enumerate(results[:k], 1):
-        rel = relevance_scores.get(result['doc_id'], 0.0)
-        dcg += rel / math.log2(i + 1)
-    
-    # Ideal DCG
-    ideal_scores = sorted(relevance_scores.values(), reverse=True)
-    idcg = sum(rel / math.log2(i + 2) for i, rel in enumerate(ideal_scores[:k]))
-    
-    return dcg / idcg if idcg > 0 else 0.0
-
-def evaluate_rouge(generated: str, reference: str) -> Dict[str, float]:
-    """Calculate ROUGE scores for summarization"""
-    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
-    scores = scorer.score(reference, generated)
-    return {
-        'rouge1': scores['rouge1'].fmeasure,
-        'rouge2': scores['rouge2'].fmeasure,
-        'rougeL': scores['rougeL'].fmeasure
-    }
-
 def save_metrics(metrics: Dict, path: str = METRICS_FILE):
     """Save evaluation metrics to JSON"""
-    with open(path, 'w') as f:
-        json.dump(metrics, f, indent=2)
+    try:
+        with open(path, 'w') as f:
+            json.dump(metrics, f, indent=2)
+    except Exception as e:
+        st.warning(f"⚠️ Could not save metrics: {e}")
 
 def load_metrics(path: str = METRICS_FILE) -> Dict:
     """Load evaluation metrics from JSON"""
-    if os.path.exists(path):
-        with open(path, 'r') as f:
-            return json.load(f)
+    try:
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return json.load(f)
+    except:
+        pass
     return {}
 
 #----------------------------------------
 # Summarization
 def summarize_text(summarizer_model, tokenizer, text: str, max_length: int = 150) -> str:
-    words = text.split()
-    if len(words) > 400:
-        chunk_size = 400
-        summaries = []
-        for i in range(0, len(words), chunk_size):
-            chunk = " ".join(words[i:i + chunk_size])
-            input_chunk = "summarize: " + chunk
-            inputs = tokenizer.encode(input_chunk, return_tensors="pt", truncation=True, max_length=512)
-            summary_ids = summarizer_model.generate(inputs, max_length=max_length // 2, min_length=20,
-                                                   length_penalty=2.0, num_beams=4, early_stopping=True)
-            summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
-        combined = " ".join(summaries)
-        input_text = "summarize: " + combined
-    else:
-        input_text = "summarize: " + text
+    """Generate summary of text using T5 model"""
+    if summarizer_model is None or tokenizer is None:
+        return "Summary generation unavailable in lite mode"
     
-    inputs = tokenizer.encode(input_text, return_tensors="pt", truncation=True, max_length=512)
-    summary_ids = summarizer_model.generate(inputs, max_length=max_length, min_length=30,
-                                           length_penalty=2.0, num_beams=4, early_stopping=True)
-    return tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    try:
+        words = text.split()
+        if len(words) > 400:
+            chunk_size = 400
+            summaries = []
+            for i in range(0, len(words), chunk_size):
+                chunk = " ".join(words[i:i + chunk_size])
+                input_chunk = "summarize: " + chunk
+                inputs = tokenizer.encode(input_chunk, return_tensors="pt", truncation=True, max_length=512)
+                summary_ids = summarizer_model.generate(inputs, max_length=max_length // 2, min_length=20,
+                                                       length_penalty=2.0, num_beams=4, early_stopping=True)
+                summaries.append(tokenizer.decode(summary_ids[0], skip_special_tokens=True))
+            combined = " ".join(summaries)
+            input_text = "summarize: " + combined
+        else:
+            input_text = "summarize: " + text
+        
+        inputs = tokenizer.encode(input_text, return_tensors="pt", truncation=True, max_length=512)
+        summary_ids = summarizer_model.generate(inputs, max_length=max_length, min_length=30,
+                                               length_penalty=2.0, num_beams=4, early_stopping=True)
+        return tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+    except Exception as e:
+        st.error(f"❌ Summarization failed: {e}")
+        return "Summary generation failed"
 
 #------------------------------------------------------
-# Models
-@st.cache_resource
+# Models - OPTIMIZED VERSION
+@st.cache_resource(show_spinner=False)
 def load_models():
-    embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    summarizer_tokenizer = T5TokenizerFast.from_pretrained(SUMMARIZER_MODEL_NAME)
-    summarizer = T5ForConditionalGeneration.from_pretrained(SUMMARIZER_MODEL_NAME)
-    nlp = load_spacy_model()
-    return embedder, summarizer, summarizer_tokenizer, nlp
+    """Load all ML models with proper error handling and progress indicators"""
+    
+    models = {
+        'embedder': None,
+        'summarizer': None, 
+        'tokenizer': None,
+        'nlp': None
+    }
+    
+    progress_container = st.container()
+    
+    with progress_container:
+        st.info("🚀 Loading AI models (first run: 3-5 minutes, cached afterwards)")
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        try:
+            # 1. Load Embedder
+            status_text.text("📥 Loading embedder model...")
+            progress_bar.progress(10)
+            
+            models['embedder'] = SentenceTransformer(
+                EMBEDDING_MODEL_NAME,
+                cache_folder=str(CACHE_DIR)
+            )
+            progress_bar.progress(35)
+            status_text.text("✅ Embedder loaded")
+            
+            # 2. Load Tokenizer
+            status_text.text("📥 Loading tokenizer...")
+            progress_bar.progress(45)
+            
+            models['tokenizer'] = T5TokenizerFast.from_pretrained(
+                SUMMARIZER_MODEL_NAME,
+                cache_dir=str(CACHE_DIR)
+            )
+            progress_bar.progress(55)
+            status_text.text("✅ Tokenizer loaded")
+            
+            # 3. Load Summarizer
+            status_text.text("📥 Loading summarizer model...")
+            progress_bar.progress(60)
+            
+            models['summarizer'] = T5ForConditionalGeneration.from_pretrained(
+                SUMMARIZER_MODEL_NAME,
+                cache_dir=str(CACHE_DIR)
+            )
+            progress_bar.progress(85)
+            status_text.text("✅ Summarizer loaded")
+            
+            # 4. Load SpaCy
+            status_text.text("📥 Loading spaCy NLP model...")
+            progress_bar.progress(90)
+            
+            models['nlp'] = load_spacy_model()
+            progress_bar.progress(100)
+            status_text.text("✅ All models loaded successfully!")
+            
+            # Clean up progress indicators
+            import time
+            time.sleep(1)
+            progress_bar.empty()
+            status_text.empty()
+            progress_container.empty()
+            
+        except Exception as e:
+            progress_bar.empty()
+            status_text.empty()
+            raise e
+    
+    return models['embedder'], models['summarizer'], models['tokenizer'], models['nlp']
 
 def index_documents(files: List[Tuple[str, bytes]]):
+    """Index uploaded documents for search"""
+    
+    if st.session_state.LITE_MODE:
+        st.error("❌ Document indexing unavailable in lite mode")
+        return None, None
+    
     embedder, _, _, _ = load_models()
+    if embedder is None:
+        st.error("❌ Embedder not available")
+        return None, None
+    
     all_chunks = []
     metadata = []
     
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    for file_idx, (filename, file_bytes) in enumerate(files):
-        status_text.text(f"Processing {filename}...")
-        progress_bar.progress((file_idx + 1) / len(files))
+    try:
+        for file_idx, (filename, file_bytes) in enumerate(files):
+            status_text.text(f"Processing {filename}...")
+            progress_bar.progress((file_idx + 1) / len(files))
+            
+            ext = filename.lower().split(".")[-1]
+            if ext == "pdf":
+                raw = extract_text_from_pdf(file_bytes)
+            elif ext in ("docx", "doc"):
+                raw = extract_text_from_docx(file_bytes)
+            else:
+                raw = extract_text_from_txt(file_bytes)
+            
+            if not raw:
+                st.warning(f"⚠️ No text extracted from {filename}")
+                continue
+            
+            raw = clean_text(raw)
+            chunks = chunk_text(raw)
+            
+            for i, c in enumerate(chunks):
+                all_chunks.append(c)
+                metadata.append((filename, i, c))
         
-        ext = filename.lower().split(".")[-1]
-        if ext == "pdf":
-            raw = extract_text_from_pdf(file_bytes)
-        elif ext in ("docx", "doc"):
-            raw = extract_text_from_docx(file_bytes)
-        else:
-            raw = extract_text_from_txt(file_bytes)
+        if not all_chunks:
+            st.warning("No text extracted from uploaded files.")
+            return None, None
         
-        raw = clean_text(raw)
-        chunks = chunk_text(raw)
+        status_text.text("Generating embeddings...")
+        vectors = []
+        for i in range(0, len(all_chunks), EMBED_BATCH):
+            batch = all_chunks[i:i+EMBED_BATCH]
+            emb = embedder.encode(batch, convert_to_numpy=True, show_progress_bar=False)
+            vectors.append(emb)
         
-        for i, c in enumerate(chunks):
-            all_chunks.append(c)
-            metadata.append((filename, i, c))
-    
-    if not all_chunks:
-        st.warning("No text extracted from uploaded files.")
+        vectors = np.vstack(vectors)
+        vectors = normalize_vectors(vectors)
+        dim = vectors.shape[1]
+        index = build_faiss_index(dim)
+        index.add(vectors)
+        
+        faiss.write_index(index, FAISS_INDEX_FILE)
+        save_metadata(metadata)
+        
+        progress_bar.empty()
+        status_text.empty()
+        st.success(f"✅ Indexed {len(all_chunks)} chunks from {len(files)} contract(s).")
+        return index, metadata
+        
+    except Exception as e:
+        progress_bar.empty()
+        status_text.empty()
+        st.error(f"❌ Indexing failed: {e}")
         return None, None
-    
-    status_text.text("Generating embeddings...")
-    vectors = []
-    for i in range(0, len(all_chunks), EMBED_BATCH):
-        batch = all_chunks[i:i+EMBED_BATCH]
-        emb = embedder.encode(batch, convert_to_numpy=True, show_progress_bar=False)
-        vectors.append(emb)
-    
-    vectors = np.vstack(vectors)
-    vectors = normalize_vectors(vectors)
-    dim = vectors.shape[1]
-    index = build_faiss_index(dim)
-    index.add(vectors)
-    
-    faiss.write_index(index, FAISS_INDEX_FILE)
-    save_metadata(metadata)
-    
-    progress_bar.empty()
-    status_text.empty()
-    st.success(f"✅ Indexed {len(all_chunks)} chunks from {len(files)} contract(s).")
-    return index, metadata
 
 def load_index_and_metadata():
+    """Load FAISS index and metadata from disk"""
     if os.path.exists(FAISS_INDEX_FILE):
         index = faiss.read_index(FAISS_INDEX_FILE)
         metadata = load_metadata()
@@ -1345,8 +1283,17 @@ def load_index_and_metadata():
     return None, []
 
 def search(query: str, top_k: int = TOP_K):
+    """Search indexed documents"""
     try:
+        if st.session_state.LITE_MODE:
+            st.error("❌ Search unavailable in lite mode")
+            return []
+        
         embedder, _, _, _ = load_models()
+        if embedder is None:
+            st.error("❌ Embedder not available")
+            return []
+        
         index, metadata = load_index_and_metadata()
         
         if index is None or len(metadata) == 0:
@@ -1373,13 +1320,27 @@ def search(query: str, top_k: int = TOP_K):
     except Exception as e:
         st.error(f"❌ Search failed: {str(e)}")
         return []
+
 #----------------------------------
 # Streamlit UI
-st.set_page_config(page_title="SmartContract MU", layout="wide", page_icon="⚖️")
+
+# Try to load models
+try:
+    with st.spinner("🚀 Initializing SmartContract MU..."):
+        embedder, summarizer, tokenizer, nlp = load_models()
+    st.session_state.LITE_MODE = False
+except Exception as e:
+    st.error(f"⚠️ Running in LITE MODE: {str(e)}")
+    st.info("💡 Some features may be limited. Try refreshing the page. If issue persists, the app may need more memory.")
+    embedder, summarizer, tokenizer, nlp = None, None, None, None
+    st.session_state.LITE_MODE = True
 
 # Header
 st.title("⚖️ SmartContract MU")
-st.caption("- AI-Powered Legal Contract Analysis ")
+st.caption("AI-Powered Legal Contract Analysis for Mauritius")
+
+if st.session_state.LITE_MODE:
+    st.warning("⚠️ Running in LITE MODE - Some AI features unavailable")
 
 # Sidebar
 with st.sidebar:
@@ -1390,20 +1351,15 @@ with st.sidebar:
         num_docs = len(set(m[0] for m in metadata))
         num_chunks = len(metadata)
 
-#---------------------------------------------------
-    #---------------------------------------------------
-        # 📄 Contract Stats
         st.markdown("### 📁 Indexed Contracts")
         col1, col2 = st.columns(2)
         col1.metric("Contracts", num_docs)
         col2.metric("Chunks", num_chunks)
 
-        # 📈 Latest Evaluation Metrics
         metrics = load_metrics()
         if metrics:
             st.markdown("### 📈 Evaluation Snapshot")
             for key, value in metrics.items():
-                # Format value properly (handle both strings and floats)
                 if isinstance(value, (int, float)):
                     formatted_value = f"{value:.3f}"
                 else:
@@ -1421,7 +1377,6 @@ with st.sidebar:
     else:
         st.info("📂 No contracts indexed yet")
 
-    # 📜 Legal Compliance Section
     st.markdown("---")
     st.markdown("### 🇲🇺 Mauritius Compliance")
     st.markdown("""
@@ -1432,9 +1387,8 @@ with st.sidebar:
     </ul>
     """, unsafe_allow_html=True)
 
-    # 📌 Footer
     st.markdown("---")
-st.caption("- Built with ❤️ for Mauritius legal teams")
+    st.caption("Built with ❤️ for Mauritius legal teams")
 
 # Main Tabs
 tabs = st.tabs([
@@ -1445,7 +1399,6 @@ tabs = st.tabs([
     "📈 Evaluation"
 ])
 
-#---------------------------------------------
 # TAB 1: Upload & Index
 with tabs[0]:
     st.header("📁 Upload and Index Contracts")
@@ -1461,12 +1414,13 @@ with tabs[0]:
     if st.button("🚀 Index Contracts", type="primary"):
         if not uploaded:
             st.warning("Please upload at least one contract file")
+        elif st.session_state.LITE_MODE:
+            st.error("❌ Indexing unavailable in lite mode")
         else:
             files = [(f.name, f.read()) for f in uploaded]
             with st.spinner("Indexing contracts..."):
                 index_documents(files)
 
-#-----------------------------------------------------
 # TAB 2: Contract Analysis
 with tabs[1]:
     st.header("🔍 Complete Contract Analysis")
@@ -1475,19 +1429,14 @@ with tabs[1]:
     if not metadata:
         st.info("👆 Please upload and index contracts first")
     else:
-        # Select contract to analyze
         contract_names = sorted(list(set(m[0] for m in metadata)))
         selected_contract = st.selectbox("Select Contract", contract_names)
         
         if st.button("🔬 Analyze Contract", type="primary"):
-            # Get full text of selected contract
             contract_chunks = [m[2] for m in metadata if m[0] == selected_contract]
             full_text = "\n\n".join(contract_chunks)
             
-            _, summarizer, tokenizer, nlp = load_models()
-            
             with st.spinner("Analyzing contract..."):
-                # Analysis sections
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -1495,15 +1444,14 @@ with tabs[1]:
                     st.subheader("🚨 Risk Analysis")
                     risk_level, risk_keywords, risk_score = detect_risk_level(full_text)
                     
-                    # Display risk level with color
-                    risk_colors = {
+                    risk_colors_emoji = {
                         "CRITICAL": "🔴",
                         "HIGH": "🟠",
                         "MEDIUM": "🟡",
                         "LOW": "🟢"
                     }
                     
-                    st.markdown(f"### {risk_colors.get(risk_level, '⚪')} {risk_level} RISK")
+                    st.markdown(f"### {risk_colors_emoji.get(risk_level, '⚪')} {risk_level} RISK")
                     st.metric("Risk Score", f"{risk_score:.1f}")
                     
                     if risk_keywords:
@@ -1517,7 +1465,6 @@ with tabs[1]:
                     law_articles = check_law_articles(full_text)
                     recommendations = generate_recommendations(full_text, law_articles, risk_level)
                     
-                    # General compliance
                     if compliance:
                         for law, matches in compliance.items():
                             with st.expander(f"📋 {law.replace('_', ' ').title()}"):
@@ -1529,16 +1476,10 @@ with tabs[1]:
                     # Civil Code Articles
                     if law_articles["civil_code"]:
                         st.markdown("#### ⚖️ **Relevant Civil Code Articles:**")
-                        # Add color coding based on article importance
                         article_colors = {
-                            "1108": "🔴",  # Essential conditions - CRITICAL
-                            "1131": "🔴",  # Unlawful cause - CRITICAL
-                            "1174": "🔴",  # Potestative - CRITICAL
-                            "1134": "🟠",  # Force of law - HIGH
-                            "1147": "🟠",  # Damages - HIGH
-                            "1184": "🟠",  # Termination - HIGH
-                            "2262": "🟡",  # 30 year prescription - MEDIUM
-                            "2277": "🟠"   # 3 year prescription - HIGH
+                            "1108": "🔴", "1131": "🔴", "1174": "🔴",
+                            "1134": "🟠", "1147": "🟠", "1184": "🟠",
+                            "2262": "🟡", "2277": "🟠"
                         }
                             
                         for article in law_articles["civil_code"]:
@@ -1548,18 +1489,15 @@ with tabs[1]:
                                 st.markdown(f"**Match Type:** {article['match_type']}")
                                 st.info(article['text'])
 
-                                # Show recommendations for specific article
                                 article_num = article['article']
                                 if article_num in LEGAL_RECOMMENDATIONS["civil_code"]:
                                     st.markdown("**📋 Recommendations:**")
                                     for rec in LEGAL_RECOMMENDATIONS["civil_code"][article_num].get("detected", []):
                                         st.markdown(rec)
                                                                 
-                                # Add explanation if available
                                 if 'explanation' in CIVIL_CODE_ARTICLES[article['article']]:
                                     st.success(f"**💡 Plain English:** {CIVIL_CODE_ARTICLES[article['article']]['explanation']}")
                                 
-                                # Add risk level indicator
                                 if 'risk_level' in CIVIL_CODE_ARTICLES[article['article']]:
                                     risk = CIVIL_CODE_ARTICLES[article['article']]['risk_level']
                                     risk_badge = {
@@ -1582,7 +1520,6 @@ with tabs[1]:
                             with st.expander(f"{emoji} {provision['section']}: {provision['title']}"):
                                 st.info(provision['text'])
                                 
-                                # Show recommendations
                                 section = provision['section']
                                 if section in LEGAL_RECOMMENDATIONS["workers_rights"]:
                                     st.markdown("**📋 Recommendations:**")
@@ -1598,14 +1535,12 @@ with tabs[1]:
                             with st.expander(f"🔐 {provision['section']}: {provision['title']}"):
                                 st.info(provision['text'])
                                 
-                                # Show recommendations
                                 section = provision['section']
                                 if section in LEGAL_RECOMMENDATIONS["data_protection"]:
                                     st.markdown("**📋 Recommendations:**")
                                     for rec in LEGAL_RECOMMENDATIONS["data_protection"][section].get("detected", []):
                                         st.markdown(rec)
                                 
-                                # Add GDPR relevance note
                                 if "processing" in provision['title'].lower():
                                     st.warning("⚠️ **GDPR Compliance:** Ensure explicit consent for data processing")
                                 elif "rights" in provision['title'].lower():
@@ -1637,7 +1572,7 @@ with tabs[1]:
                             for rec in recommendations["general"]:
                                 st.markdown(rec)
                     
-                    # Add "Download Recommendations" button
+                    # Download recommendations
                     if any(recommendations.values()):
                         st.markdown("---")
                         rec_text = "# Legal Recommendations Report\n\n"
@@ -1680,7 +1615,6 @@ with tabs[1]:
                             for date in entities["dates"][:MAX_ENTITIES_DISPLAY]:
                                 st.markdown(f"- {date}")
                         
-                        # Time-bar warnings
                         warnings = calculate_deadline_warnings(entities["dates"])
                         if warnings:
                             st.warning(f"⚠️ {len(warnings)} potential time-bar concerns")
@@ -1728,13 +1662,16 @@ with tabs[1]:
                 
                 # Summary
                 st.subheader("📝 Executive Summary")
-                with st.spinner("Generating summary..."):
-                    summary = summarize_text(summarizer, tokenizer, full_text, max_length=200)
-                    st.info(summary)
+                if not st.session_state.LITE_MODE:
+                    with st.spinner("Generating summary..."):
+                        summary = summarize_text(summarizer, tokenizer, full_text, max_length=200)
+                        st.info(summary)
+                else:
+                    st.warning("⚠️ Summary generation unavailable in lite mode")
 
-# TAB 3:Risk Assessment Dashboard
+# TAB 3: Risk Assessment Dashboard
 with tabs[2]:
-    st.header("## ⚖️ Risk Assessment Dashboard")
+    st.header("⚖️ Risk Assessment Dashboard")
 
     _, metadata = load_index_and_metadata()
     if not metadata:
@@ -1742,11 +1679,9 @@ with tabs[2]:
     else:
         st.markdown("### 📋 Contract Risk Overview")
 
-        # Extract contract names
         contract_names = sorted(list(set(m[0] for m in metadata)))
         risk_data = []
 
-        # Analyze risk for each contract
         with st.spinner("Analyzing all contracts..."):
             for contract_name in contract_names:
                 contract_chunks = [m[2] for m in metadata if m[0] == contract_name]
@@ -1780,10 +1715,9 @@ with tabs[2]:
             </div>
             """, unsafe_allow_html=True)
 
-        # View toggle: Summary or Chart
+        # View toggle
         view = st.radio("📊 Choose view:", ["Summary", "Chart"], horizontal=True)
 
-        # Risk Summary View
         risk_counts = df['Risk_Level'].value_counts()
         levels = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
 
@@ -1801,7 +1735,6 @@ with tabs[2]:
                 </div>
                 """, unsafe_allow_html=True)
 
-        # Risk Chart View
         else:
             st.markdown("### 📊 Risk Score by Contract")
             color_scale = alt.Scale(
@@ -1827,9 +1760,8 @@ with tabs[2]:
             )
 
             st.altair_chart(bar, use_container_width=True)
-            st.caption("📊 Each bar shows a contract’s risk score and level. Hover to see details.")
+            st.caption("📊 Each bar shows a contract's risk score and level. Hover to see details.")
 
-#-----------------------------------------
 # TAB 4: Search & Compare
 with tabs[3]:
     st.header("🔍 Search & Compare Contracts")
@@ -1837,10 +1769,12 @@ with tabs[3]:
     _, metadata = load_index_and_metadata()
     if not metadata:
         st.info("👆 Please upload contracts first")
+    elif st.session_state.LITE_MODE:
+        st.warning("⚠️ Search features unavailable in lite mode")
     else:
         contract_names = sorted(list(set(m[0] for m in metadata)))
 
-        # 🔎 Search Section
+        # Search Section
         st.markdown("### 🔎 Search Contracts")
         query = st.text_input("Search for specific clauses or terms")
         col1, col2 = st.columns([3, 1])
@@ -1870,8 +1804,7 @@ with tabs[3]:
                             st.caption(f"Chunk {r['chunk_idx']}")
                         concatenated.append(r["text"])
 
-                    if show_summary and concatenated:
-                        _, summarizer, tokenizer, _ = load_models()
+                    if show_summary and concatenated and not st.session_state.LITE_MODE:
                         joined = "\n\n".join(concatenated)
                         if len(joined.split()) >= 20:
                             with st.spinner("Generating summary..."):
@@ -1879,7 +1812,7 @@ with tabs[3]:
                                 st.subheader("📝 Summary")
                                 st.info(summary)
 
-        # ⚖️ Compare Section
+        # Compare Section
         st.markdown("### ⚖️ Compare Two Contracts")
         col1, col2 = st.columns(2)
         with col1:
@@ -1916,380 +1849,150 @@ with tabs[3]:
             </div>
             """, unsafe_allow_html=True)
 
-#------------------------------------------------------
 # TAB 5: Evaluation & Metrics
 with tabs[4]:
     st.header("📈 Evaluation & Metrics")
     
-    # Threshold config
-    threshold = st.slider("🎯 Similarity Threshold", 0.1, 1.0, 0.5, 0.05,
-                          help="0.4-0.6 recommended. Lower = lenient, Higher = strict")
-    
-    # Load ground truth
-    ground_truth = load_ground_truth_cases()
-    
-    # Add test case
-    with st.expander("➕ Add Ground Truth Test Case"):
-        with st.form("add_gt_form", clear_on_submit=True):
-            test_query = st.text_input("Query", placeholder="e.g., termination notice period")
-            relevant_doc = st.text_area("Expected Content (200+ words recommended)", height=120)
-            
-            submitted = st.form_submit_button("Add Test Case", type="primary")
-            
-            if submitted:
-                if test_query and relevant_doc:
-                    ground_truth[test_query] = relevant_doc
-                    save_ground_truth_cases(ground_truth)
-                    st.success("✅ Test case added!")
-                    st.rerun()
-                else:
-                    st.warning("Please fill both fields")
-    
-    # Buttons for saved test cases
-    col1, col2 = st.columns(2)
-    with col1:
-        show_cases = st.button(f"📋 Show Saved Cases ({len(ground_truth)})" if ground_truth else "📋 No Saved Cases")
-    with col2:
-        manage_cases = st.button("✏️ Manage Cases") if ground_truth else None
-    
-    # Show saved test cases (toggle)
-    if "show_saved_cases" not in st.session_state:
-        st.session_state.show_saved_cases = False
-    if "manage_mode" not in st.session_state:
-        st.session_state.manage_mode = False
-    
-    if show_cases:
-        st.session_state.show_saved_cases = not st.session_state.show_saved_cases
-        st.session_state.manage_mode = False
-    
-    if manage_cases:
-        st.session_state.manage_mode = not st.session_state.manage_mode
-        st.session_state.show_saved_cases = False
-    
-    # Display saved cases (view only)
-    if st.session_state.show_saved_cases and ground_truth:
-        st.markdown("#### 📋 Saved Test Cases")
-        for query, doc in ground_truth.items():
-            with st.expander(f"🔎 {query}"):
-                st.markdown(f"**Expected Content ({len(doc)} chars):**")
-                st.text(doc[:500] + "..." if len(doc) > 500 else doc)
-                if len(doc) < 100:
-                    st.warning("⚠️ Text is short - consider using longer text")
-    
-    # Manage cases (edit/delete)
-    if st.session_state.manage_mode and ground_truth:
-        st.markdown("#### ✏️ Manage Test Cases")
-        
-        # Select case to manage
-        selected_query = st.selectbox("Select a test case:", list(ground_truth.keys()), key="select_case")
-        
-        if selected_query:
-            st.markdown(f"**Editing: {selected_query}**")
-            
-            # Edit content - use selected_query as part of key to force refresh
-            edited_content = st.text_area(
-                "Edit content:", 
-                value=ground_truth[selected_query], 
-                height=150,
-                key=f"edit_{selected_query}"
-            )
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                if st.button("💾 Save Changes", type="primary"):
-                    ground_truth[selected_query] = edited_content
-                    save_ground_truth_cases(ground_truth)
-                    st.success("✅ Updated!")
-                    st.rerun()
-            
-            with col2:
-                if st.button("🗑️ Delete This Case", type="secondary"):
-                    del ground_truth[selected_query]
-                    save_ground_truth_cases(ground_truth)
-                    st.success("✅ Deleted!")
-                    st.rerun()
-            
-            with col3:
-                if st.button("🗑️ Delete ALL Cases"):
-                    save_ground_truth_cases({})
-                    st.success("✅ All cases deleted!")
-                    st.rerun()
-    
-    st.divider()
-    
-    # Quick Test Section
-    st.markdown("### 🔬 Quick Test")
-    
-    # Initialize session state for quick test
-    if "quick_test_counter" not in st.session_state:
-        st.session_state.quick_test_counter = 0
-    
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        test_query_input = st.text_input("Test a query:", placeholder="e.g., termination notice period",
-                                         key=f"quick_query_{st.session_state.quick_test_counter}")
-    with col2:
-        test_k = st.number_input("Top K", min_value=1, max_value=10, value=5)
-    
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        test_btn = st.button("🧪 Test Query", type="secondary")
-    with col2:
-        if st.button("🗑️ Clear"):
-            st.session_state.quick_test_counter += 1
-            st.rerun()
-    
-    if test_btn:
-        if not test_query_input:
-            st.warning("Enter a query to test")
-        else:
-            embedder, _, _, _ = load_models()
-            results = search(test_query_input, top_k=test_k)
-            
-            if not results:
-                st.error("❌ No results found! Make sure documents are indexed.")
-            else:
-                st.success(f"✓ Found {len(results)} results")
-                
-                for i, r in enumerate(results, 1):
-                    with st.expander(f"Result {i}: {r['doc_id']} (Score: {r['score']:.3f})"):
-                        st.text(r['text'][:500] + "..." if len(r['text']) > 500 else r['text'])
-                
-                # Show metrics if ground truth exists
-                if test_query_input in ground_truth:
-                    st.markdown("---")
-                    relevant_doc = ground_truth[test_query_input]
-                    retrieved_docs = [r['text'] for r in results]
-                    
-                    precision, recall = calculate_precision_recall(retrieved_docs, relevant_doc, embedder, threshold)
-                    f1 = calculate_f1(precision, recall)
-                    mrr = calculate_mrr(results, relevant_doc, embedder, threshold)
-                    
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Precision", f"{precision:.3f}")
-                    c2.metric("Recall", f"{recall:.3f}")
-                    c3.metric("F1", f"{f1:.3f}")
-                    c4.metric("MRR", f"{mrr:.3f}")
-    
-    st.divider()
-    
-    # Full Evaluation
-    st.markdown("### 🧪 Run Evaluation")
-    
-    eval_mode = st.radio(
-        "Evaluation Mode:",
-        ["With Ground Truth (Accuracy)", "Without Ground Truth (Quality Analysis)"],
-        help="With ground truth = measure accuracy. Without = analyze search quality."
-    )
-    
-    # === WITH GROUND TRUTH ===
-    if eval_mode == "With Ground Truth (Accuracy)":
-        if not ground_truth:
-            st.warning("⚠️ No ground truth test cases found. Add test cases above or switch to 'Without Ground Truth' mode.")
-            st.stop()
-        
-        if st.button("🧪 Run Accuracy Evaluation", type="primary"):
-            with st.spinner("Running evaluation..."):
-                embedder, _, _, _ = load_models()
-                
-                all_metrics = {'precision': [], 'recall': [], 'f1': [], 'mrr': []}
-                detailed = []
-                
-                for query, relevant_doc in ground_truth.items():
-                    results = search(query, top_k=test_k)
-                    retrieved_docs = [r['text'] for r in results]
-                    
-                    precision, recall = calculate_precision_recall(retrieved_docs, relevant_doc, embedder, threshold)
-                    f1 = calculate_f1(precision, recall)
-                    mrr = calculate_mrr(results, relevant_doc, embedder, threshold)
-                    
-                    all_metrics['precision'].append(precision)
-                    all_metrics['recall'].append(recall)
-                    all_metrics['f1'].append(f1)
-                    all_metrics['mrr'].append(mrr)
-                    
-                    top_match = results[0]['text'] if results else ""
-                    similarity = 0.0
-                    if top_match and relevant_doc:
-                        try:
-                            rel_vec = embedder.encode([relevant_doc], convert_to_numpy=True)
-                            top_vec = embedder.encode([top_match], convert_to_numpy=True)
-                            similarity = float(cosine_similarity(rel_vec, top_vec)[0][0])
-                        except:
-                            pass
-                    
-                    detailed.append({
-                        "Query": query,
-                        "Expected": relevant_doc[:150] + "...",
-                        "Top Match": top_match[:150] + "...",
-                        "Similarity": similarity,
-                        "Match": similarity >= threshold,
-                        "Precision": precision,
-                        "Recall": recall,
-                        "F1": f1,
-                        "MRR": mrr
-                    })
-                
-                # Averages
-                avg = {k: np.mean(v) if v else 0.0 for k, v in all_metrics.items()}
-                save_metrics(avg)
-            
-            st.success("✅ Evaluation complete!")
-            
-            # Results
-            st.markdown("## 🎯 Overall Performance")
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Precision", f"{avg['precision']:.3f}")
-            c2.metric("Recall", f"{avg['recall']:.3f}")
-            c3.metric("F1", f"{avg['f1']:.3f}")
-            c4.metric("MRR", f"{avg['mrr']:.3f}")
-            
-            # Status
-            if avg['f1'] >= 0.85: st.success("🎉 EXCELLENT")
-            elif avg['f1'] >= 0.70: st.info("✓ GOOD")
-            elif avg['f1'] >= 0.50: st.warning("⚠️ FAIR")
-            else: st.error("❌ NEEDS WORK")
-            
-            # Summary table
-            import pandas as pd
-            df = pd.DataFrame([{k: r[k] for k in ["Query", "Precision", "Recall", "F1", "MRR"]} for r in detailed])
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            
-            # Recommendations
-            issues = []
-            if avg['precision'] < 0.5: issues.append("📌 Low Precision → Increase threshold")
-            if avg['recall'] < 0.5: issues.append("📌 Low Recall → Decrease threshold")
-            if avg['mrr'] < 0.5: issues.append("📌 Low MRR → Check indexing quality")
-            
-            if issues:
-                st.markdown("### 💡 Recommendations")
-                for issue in issues:
-                    st.warning(issue)
-            
-            # Detailed results
-            with st.expander("🔍 Detailed Results"):
-                for r in detailed:
-                    emoji = "✅" if r["Match"] else "❌"
-                    st.markdown(f"**{emoji} {r['Query']}** (Similarity: {r['Similarity']:.3f})")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.caption("Expected")
-                        st.info(r["Expected"])
-                    with col2:
-                        st.caption("Retrieved")
-                        if r["Match"]:
-                            st.success(r["Top Match"])
-                        else:
-                            st.error(r["Top Match"])
-                    st.markdown("---")
-    
-    # === WITHOUT GROUND TRUTH ===
+    if st.session_state.LITE_MODE:
+        st.warning("⚠️ Evaluation features unavailable in lite mode")
     else:
-        st.info("💡 This mode analyzes search quality by examining result diversity, relevance signals, and consistency.")
+        threshold = st.slider("🎯 Similarity Threshold", 0.1, 1.0, 0.5, 0.05,
+                              help="0.4-0.6 recommended")
         
-        sample_queries = st.text_area(
-            "Test queries (one per line):",
-            "termination notice period\nliability clauses\npayment terms",
-            height=100
-        )
+        ground_truth = load_ground_truth_cases()
         
-        if st.button("🧪 Run Quality Analysis", type="primary"):
-            if not sample_queries.strip():
-                st.warning("Enter at least one test query")
+        # Add test case
+        with st.expander("➕ Add Ground Truth Test Case"):
+            with st.form("add_gt_form", clear_on_submit=True):
+                test_query = st.text_input("Query", placeholder="e.g., termination notice period")
+                relevant_doc = st.text_area("Expected Content (200+ words recommended)", height=120)
+                
+                submitted = st.form_submit_button("Add Test Case", type="primary")
+                
+                if submitted:
+                    if test_query and relevant_doc:
+                        ground_truth[test_query] = relevant_doc
+                        save_ground_truth_cases(ground_truth)
+                        st.success("✅ Test case added!")
+                        st.rerun()
+                    else:
+                        st.warning("Please fill both fields")
+        
+        # Show/manage cases (rest of Tab 5 code continues...)
+        col1, col2 = st.columns(2)
+        with col1:
+            show_cases = st.button(f"📋 Show Saved Cases ({len(ground_truth)})" if ground_truth else "📋 No Saved Cases")
+        with col2:
+            manage_cases = st.button("✏️ Manage Cases") if ground_truth else None
+        
+        if "show_saved_cases" not in st.session_state:
+            st.session_state.show_saved_cases = False
+        if "manage_mode" not in st.session_state:
+            st.session_state.manage_mode = False
+        
+        if show_cases:
+            st.session_state.show_saved_cases = not st.session_state.show_saved_cases
+            st.session_state.manage_mode = False
+        
+        if manage_cases:
+            st.session_state.manage_mode = not st.session_state.manage_mode
+            st.session_state.show_saved_cases = False
+        
+        if st.session_state.show_saved_cases and ground_truth:
+            st.markdown("#### 📋 Saved Test Cases")
+            for query, doc in ground_truth.items():
+                with st.expander(f"🔎 {query}"):
+                    st.markdown(f"**Expected Content ({len(doc)} chars):**")
+                    st.text(doc[:500] + "..." if len(doc) > 500 else doc)
+                    if len(doc) < 100:
+                        st.warning("⚠️ Text is short - consider using longer text")
+        
+        if st.session_state.manage_mode and ground_truth:
+            st.markdown("#### ✏️ Manage Test Cases")
+            
+            selected_query = st.selectbox("Select a test case:", list(ground_truth.keys()), key="select_case")
+            
+            if selected_query:
+                st.markdown(f"**Editing: {selected_query}**")
+                
+                edited_content = st.text_area(
+                    "Edit content:", 
+                    value=ground_truth[selected_query], 
+                    height=150,
+                    key=f"edit_{selected_query}"
+                )
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    if st.button("💾 Save Changes", type="primary"):
+                        ground_truth[selected_query] = edited_content
+                        save_ground_truth_cases(ground_truth)
+                        st.success("✅ Updated!")
+                        st.rerun()
+                
+                with col2:
+                    if st.button("🗑️ Delete This Case", type="secondary"):
+                        del ground_truth[selected_query]
+                        save_ground_truth_cases(ground_truth)
+                        st.success("✅ Deleted!")
+                        st.rerun()
+                
+                with col3:
+                    if st.button("🗑️ Delete ALL Cases"):
+                        save_ground_truth_cases({})
+                        st.success("✅ All cases deleted!")
+                        st.rerun()
+        
+        st.divider()
+        
+        # Quick Test Section
+        st.markdown("### 🔬 Quick Test")
+        
+        if "quick_test_counter" not in st.session_state:
+            st.session_state.quick_test_counter = 0
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            test_query_input = st.text_input("Test a query:", placeholder="e.g., termination notice period",
+                                             key=f"quick_query_{st.session_state.quick_test_counter}")
+        with col2:
+            test_k = st.number_input("Top K", min_value=1, max_value=10, value=5)
+        
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            test_btn = st.button("🧪 Test Query", type="secondary")
+        with col2:
+            if st.button("🗑️ Clear"):
+                st.session_state.quick_test_counter += 1
+                st.rerun()
+        
+        if test_btn:
+            if not test_query_input:
+                st.warning("Enter a query to test")
             else:
-                queries = [q.strip() for q in sample_queries.split('\n') if q.strip()]
+                results = search(test_query_input, top_k=test_k)
                 
-                with st.spinner(f"Analyzing {len(queries)} queries..."):
-                    embedder, _, _, _ = load_models()
-                    analysis = []
+                if not results:
+                    st.error("❌ No results found!")
+                else:
+                    st.success(f"✓ Found {len(results)} results")
                     
-                    for query in queries:
-                        results = search(query, top_k=test_k)
-                        
-                        if not results:
-                            st.warning(f"No results for: {query}")
-                            continue
-                        
-                        scores = [r['score'] for r in results]
-                        top_score = scores[0]
-                        score_drop = scores[0] - scores[-1] if len(scores) > 1 else 0.0
-                        
-                        # Diversity
-                        diversity = 0.0
-                        if len(results) >= 2:
-                            sims = []
-                            for i in range(len(results) - 1):
-                                v1 = embedder.encode([results[i]['text']], convert_to_numpy=True)
-                                v2 = embedder.encode([results[i+1]['text']], convert_to_numpy=True)
-                                sims.append(float(cosine_similarity(v1, v2)[0][0]))
-                            diversity = 1.0 - np.mean(sims)
-                        
-                        # Quality rating
-                        if top_score >= 0.7 and diversity >= 0.3:
-                            quality, emoji = "EXCELLENT", "🟢"
-                        elif top_score >= 0.5:
-                            quality, emoji = "GOOD", "🟡"
-                        elif top_score >= 0.3:
-                            quality, emoji = "FAIR", "🟠"
-                        else:
-                            quality, emoji = "POOR", "🔴"
-                        
-                        analysis.append({
-                            "Query": query,
-                            "Quality": quality,
-                            "Emoji": emoji,
-                            "Top Score": top_score,
-                            "Diversity": diversity,
-                            "Score Drop": score_drop,
-                            "Results": len(results)
-                        })
-                
-                st.success("✅ Analysis complete!")
-                
-                # Summary
-                st.markdown("## 📊 Quality Analysis")
-                
-                avg_score = np.mean([r['Top Score'] for r in analysis])
-                avg_div = np.mean([r['Diversity'] for r in analysis])
-                excellent = sum(1 for r in analysis if r['Quality'] == 'EXCELLENT')
-                good_plus = sum(1 for r in analysis if r['Quality'] in ['EXCELLENT', 'GOOD'])
-                
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Avg Top Score", f"{avg_score:.3f}")
-                c2.metric("Avg Diversity", f"{avg_div:.3f}")
-                c3.metric("Excellent", f"{excellent}/{len(analysis)}")
-                c4.metric("Good+", f"{good_plus}/{len(analysis)}")
-                
-                # Table
-                import pandas as pd
-                df = pd.DataFrame([{
-                    "Query": r["Query"],
-                    "Quality": f"{r['Emoji']} {r['Quality']}",
-                    "Score": f"{r['Top Score']:.3f}",
-                    "Diversity": f"{r['Diversity']:.3f}"
-                } for r in analysis])
-                st.dataframe(df, use_container_width=True, hide_index=True)
-                
-                # Insights
-                st.markdown("### 💡 Insights")
-                if avg_score < 0.5:
-                    st.warning("📌 Low scores → Re-index with better chunking or use specific queries")
-                if avg_div < 0.2:
-                    st.warning("📌 Low diversity → Results too similar, adjust chunking")
-                if avg_div > 0.7:
-                    st.warning("📌 High diversity → Results may be unrelated")
-                if avg_score >= 0.5 and 0.2 <= avg_div <= 0.7:
-                    st.success("✅ Good search quality!")
-                
-                # Per-query details
-                with st.expander("🔍 Per-Query Details"):
-                    for r in analysis:
-                        st.markdown(f"**{r['Emoji']} {r['Query']}** - {r['Quality']}")
-                        c1, c2, c3 = st.columns(3)
-                        c1.metric("Top Score", f"{r['Top Score']:.3f}")
-                        c2.metric("Diversity", f"{r['Diversity']:.3f}")
-                        c3.metric("Results", r['Results'])
-
+                    for i, r in enumerate(results, 1):
+                        with st.expander(f"Result {i}: {r['doc_id']} (Score: {r['score']:.3f})"):
+                            st.text(r['text'][:500] + "..." if len(r['text']) > 500 else r['text'])
+                    
+                    if test_query_input in ground_truth:
                         st.markdown("---")
+                        relevant_doc = ground_truth[test_query_input]
+                        retrieved_docs = [r['text'] for r in results]
+                        
+                        precision, recall, _ = calculate_precision_recall(retrieved_docs, relevant_doc, embedder, threshold)
+                        f1 = calculate_f1(precision, recall)
+                        mrr = calculate_mrr(results, relevant_doc, embedder, threshold)
+                        
+                        c1, c2, c3, c4 = st.columns(4)
+                        c1.metric("Precision", f"{precision:.3f}")
+                        c2.metric("Recall", f"{recall:.3f}")
+                        c3.metric("F1", f"{f1:.3f}")
+                        c4.metric("MRR", f"{mrr:.3f}")
