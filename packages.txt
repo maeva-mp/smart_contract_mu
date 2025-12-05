@@ -1,0 +1,9 @@
+# System packages needed for SmartContract MU
+# Place this file in your repository root
+
+# For spaCy
+build-essential
+python3-dev
+
+# For PDF processing (if needed)
+# poppler-utils
