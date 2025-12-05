@@ -449,25 +449,54 @@ def chunk_text(text: str, approx_tokens: int = CHUNK_TOKENS, overlap: int = 50) 
 
 #-----------------------------
 # Load NER Model
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_spacy_model():
-    nlp = spacy.load("en_core_web_sm")
+    """Load spaCy model with automatic download if not present"""
+    import subprocess
+    import sys
+    
+    model_name = "en_core_web_sm"
+    
+    try:
+        nlp = spacy.load(model_name)
+        st.success("✅ SpaCy model loaded from cache")
+        
+    except OSError:
+        with st.spinner(f"📥 Downloading {model_name} (one-time, ~12MB)..."):
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "spacy", "download", model_name],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                nlp = spacy.load(model_name)
+                st.success("✅ SpaCy model downloaded and loaded")
+                
+            except Exception as e:
+                st.error(f"❌ Failed to download spaCy model: {e}")
+                st.warning("⚠️ Running without entity extraction features")
+                return None
+    
+    # Add entity ruler patterns
+    if nlp is not None:
+        try:
+            if "entity_ruler" not in nlp.pipe_names:
+                ruler = nlp.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
 
-    # New SpaCy 3.x syntax
-    ruler = nlp.add_pipe("entity_ruler", before="ner", config={"overwrite_ents": True})
+                patterns = [
+                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "liability"}]},
+                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "liabilities"}]},
+                    {"label": "LEGAL_TERM", "pattern": [{"TEXT": {"REGEX": "(?i)indemnif.*"}}]},
+                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "hold"}, {"LOWER": "harmless"}]},
+                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "force"}, {"LOWER": "majeure"}]},
+                    {"label": "LEGAL_TERM", "pattern": [{"LOWER": "severance"}, {"LOWER": "allowance"}]},
+                    {"label": "LEGAL_TERM", "pattern": [{"TEXT": {"REGEX": "(?i)waiv.*"}}]},
+                ]
 
-    patterns = [
-        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "liability"}]},
-        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "liabilities"}]},
-        {"label": "LEGAL_TERM", "pattern": [{"TEXT": {"REGEX": "(?i)indemnif.*"}}]},
-        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "hold"}, {"LOWER": "harmless"}]},
-        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "force"}, {"LOWER": "majeure"}]},
-        {"label": "LEGAL_TERM", "pattern": [{"LOWER": "severance"}, {"LOWER": "allowance"}]},
-        {"label": "LEGAL_TERM", "pattern": [{"TEXT": {"REGEX": "(?i)waiv.*"}}]},
-    ]
-
-    ruler.add_patterns(patterns)
-
+                ruler.add_patterns(patterns)
+        except Exception as e:
+            st.warning(f"⚠️ Could not add entity ruler: {e}")
+    
     return nlp
 
 #-----------------------------------------------
@@ -2262,4 +2291,5 @@ with tabs[4]:
                         c1.metric("Top Score", f"{r['Top Score']:.3f}")
                         c2.metric("Diversity", f"{r['Diversity']:.3f}")
                         c3.metric("Results", r['Results'])
+
                         st.markdown("---")
