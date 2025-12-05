@@ -1,0 +1,100 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+ENV/
+env/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Models (too large for git - download separately)
+models/
+*.bin
+*.pt
+*.pth
+*.safetensors
+
+# Large data files
+*.parquet
+large_datasets/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# PyCharm
+.idea/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation builds
+docs/_build/
+site/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# User uploaded files (if implementing file uploads)
+uploads/
+user_data/
+
+# Cache
+.cache/
+*.cache
+
+# Local configuration
+config.local.toml
+secrets.toml
