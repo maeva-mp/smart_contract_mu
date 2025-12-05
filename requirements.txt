@@ -1,33 +1,17 @@
-# Core Streamlit and Web Framework
+# SmartContract MU - Production Requirements
+
 streamlit==1.40.0
-
-# AI/ML Models
-sentence-transformers==3.3.1
-transformers==4.46.3
-torch==2.5.1
-
-# NLP
-spacy==3.8.2
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
-
-# Vector Search
-faiss-cpu==1.9.0.post1
-
-# Document Processing
+sentence-transformers==3.0.0
+transformers==4.44.0
+torch==2.4.0
+spacy==3.7.5
+faiss-cpu==1.8.0
 PyPDF2==3.0.1
 python-docx==1.1.2
-
-# Data Processing
-pandas==2.2.3
+pandas==2.2.0
 numpy==1.26.4
-
-# Visualization
-matplotlib==3.9.2
-seaborn==0.13.2
-altair==5.4.1
-
-# NLP Metrics
+scikit-learn==1.5.0
+matplotlib==3.8.0
+altair==5.3.0
 rouge-score==0.1.2
-
-# Utilities
-python-dateutil==2.9.0.post0
+python-dateutil==2.9.0
