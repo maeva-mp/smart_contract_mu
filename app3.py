@@ -1141,7 +1141,7 @@ def load_models():
     progress_container = st.container()
     
     with progress_container:
-        st.info("🚀 Loading AI models")
+        st.info("")
         progress_bar = st.progress(0)
         status_text = st.empty()
         
@@ -2219,3 +2219,4 @@ with tabs[4]:
                         c2.metric("Diversity", f"{r['Diversity']:.3f}")
                         c3.metric("Results", r['Results'])
                         st.markdown("---")
+
