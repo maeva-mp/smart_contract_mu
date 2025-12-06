@@ -1141,7 +1141,7 @@ def load_models():
     progress_container = st.container()
     
     with progress_container:
-        st.info("🚀 Loading AI models (first run: 3-5 minutes, cached afterwards)")
+        st.info("🚀 Loading AI models")
         progress_bar = st.progress(0)
         status_text = st.empty()
         
@@ -1850,6 +1850,8 @@ with tabs[3]:
             """, unsafe_allow_html=True)
 
 # TAB 5: Evaluation & Metrics
+#------------------------------------------------------
+# TAB 5: Evaluation & Metrics
 with tabs[4]:
     st.header("📈 Evaluation & Metrics")
     
@@ -1996,3 +1998,224 @@ with tabs[4]:
                         c2.metric("Recall", f"{recall:.3f}")
                         c3.metric("F1", f"{f1:.3f}")
                         c4.metric("MRR", f"{mrr:.3f}")
+   
+    st.divider()
+    
+    # Full Evaluation
+    st.markdown("### 🧪 Run Evaluation")
+    
+    eval_mode = st.radio(
+        "Evaluation Mode:",
+        ["With Ground Truth (Accuracy)", "Without Ground Truth (Quality Analysis)"],
+        help="With ground truth = measure accuracy. Without = analyze search quality."
+    )
+    
+    # === WITH GROUND TRUTH ===
+    if eval_mode == "With Ground Truth (Accuracy)":
+        if not ground_truth:
+            st.warning("⚠️ No ground truth test cases found. Add test cases above or switch to 'Without Ground Truth' mode.")
+            st.stop()
+        
+        if st.button("🧪 Run Accuracy Evaluation", type="primary"):
+            with st.spinner("Running evaluation..."):
+                embedder, _, _, _ = load_models()
+                
+                all_metrics = {'precision': [], 'recall': [], 'f1': [], 'mrr': []}
+                detailed = []
+                
+                for query, relevant_doc in ground_truth.items():
+                    results = search(query, top_k=test_k)
+                    retrieved_docs = [r['text'] for r in results]
+                    
+                    precision, recall = calculate_precision_recall(retrieved_docs, relevant_doc, embedder, threshold)
+                    f1 = calculate_f1(precision, recall)
+                    mrr = calculate_mrr(results, relevant_doc, embedder, threshold)
+                    
+                    all_metrics['precision'].append(precision)
+                    all_metrics['recall'].append(recall)
+                    all_metrics['f1'].append(f1)
+                    all_metrics['mrr'].append(mrr)
+                    
+                    top_match = results[0]['text'] if results else ""
+                    similarity = 0.0
+                    if top_match and relevant_doc:
+                        try:
+                            rel_vec = embedder.encode([relevant_doc], convert_to_numpy=True)
+                            top_vec = embedder.encode([top_match], convert_to_numpy=True)
+                            similarity = float(cosine_similarity(rel_vec, top_vec)[0][0])
+                        except:
+                            pass
+                    
+                    detailed.append({
+                        "Query": query,
+                        "Expected": relevant_doc[:150] + "...",
+                        "Top Match": top_match[:150] + "...",
+                        "Similarity": similarity,
+                        "Match": similarity >= threshold,
+                        "Precision": precision,
+                        "Recall": recall,
+                        "F1": f1,
+                        "MRR": mrr
+                    })
+                
+                # Averages
+                avg = {k: np.mean(v) if v else 0.0 for k, v in all_metrics.items()}
+                save_metrics(avg)
+            
+            st.success("✅ Evaluation complete!")
+            
+            # Results
+            st.markdown("## 🎯 Overall Performance")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Precision", f"{avg['precision']:.3f}")
+            c2.metric("Recall", f"{avg['recall']:.3f}")
+            c3.metric("F1", f"{avg['f1']:.3f}")
+            c4.metric("MRR", f"{avg['mrr']:.3f}")
+            
+            # Status
+            if avg['f1'] >= 0.85: st.success("🎉 EXCELLENT")
+            elif avg['f1'] >= 0.70: st.info("✓ GOOD")
+            elif avg['f1'] >= 0.50: st.warning("⚠️ FAIR")
+            else: st.error("❌ NEEDS WORK")
+            
+            # Summary table
+            import pandas as pd
+            df = pd.DataFrame([{k: r[k] for k in ["Query", "Precision", "Recall", "F1", "MRR"]} for r in detailed])
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            
+            # Recommendations
+            issues = []
+            if avg['precision'] < 0.5: issues.append("📌 Low Precision → Increase threshold")
+            if avg['recall'] < 0.5: issues.append("📌 Low Recall → Decrease threshold")
+            if avg['mrr'] < 0.5: issues.append("📌 Low MRR → Check indexing quality")
+            
+            if issues:
+                st.markdown("### 💡 Recommendations")
+                for issue in issues:
+                    st.warning(issue)
+            
+            # Detailed results
+            with st.expander("🔍 Detailed Results"):
+                for r in detailed:
+                    emoji = "✅" if r["Match"] else "❌"
+                    st.markdown(f"**{emoji} {r['Query']}** (Similarity: {r['Similarity']:.3f})")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.caption("Expected")
+                        st.info(r["Expected"])
+                    with col2:
+                        st.caption("Retrieved")
+                        if r["Match"]:
+                            st.success(r["Top Match"])
+                        else:
+                            st.error(r["Top Match"])
+                    st.markdown("---")
+    
+    # === WITHOUT GROUND TRUTH ===
+    else:
+        st.info("💡 This mode analyzes search quality by examining result diversity, relevance signals, and consistency.")
+        
+        sample_queries = st.text_area(
+            "Test queries (one per line):",
+            "termination notice period\nliability clauses\npayment terms",
+            height=100
+        )
+        
+        if st.button("🧪 Run Quality Analysis", type="primary"):
+            if not sample_queries.strip():
+                st.warning("Enter at least one test query")
+            else:
+                queries = [q.strip() for q in sample_queries.split('\n') if q.strip()]
+                
+                with st.spinner(f"Analyzing {len(queries)} queries..."):
+                    embedder, _, _, _ = load_models()
+                    analysis = []
+                    
+                    for query in queries:
+                        results = search(query, top_k=test_k)
+                        
+                        if not results:
+                            st.warning(f"No results for: {query}")
+                            continue
+                        
+                        scores = [r['score'] for r in results]
+                        top_score = scores[0]
+                        score_drop = scores[0] - scores[-1] if len(scores) > 1 else 0.0
+                        
+                        # Diversity
+                        diversity = 0.0
+                        if len(results) >= 2:
+                            sims = []
+                            for i in range(len(results) - 1):
+                                v1 = embedder.encode([results[i]['text']], convert_to_numpy=True)
+                                v2 = embedder.encode([results[i+1]['text']], convert_to_numpy=True)
+                                sims.append(float(cosine_similarity(v1, v2)[0][0]))
+                            diversity = 1.0 - np.mean(sims)
+                        
+                        # Quality rating
+                        if top_score >= 0.7 and diversity >= 0.3:
+                            quality, emoji = "EXCELLENT", "🟢"
+                        elif top_score >= 0.5:
+                            quality, emoji = "GOOD", "🟡"
+                        elif top_score >= 0.3:
+                            quality, emoji = "FAIR", "🟠"
+                        else:
+                            quality, emoji = "POOR", "🔴"
+                        
+                        analysis.append({
+                            "Query": query,
+                            "Quality": quality,
+                            "Emoji": emoji,
+                            "Top Score": top_score,
+                            "Diversity": diversity,
+                            "Score Drop": score_drop,
+                            "Results": len(results)
+                        })
+                
+                st.success("✅ Analysis complete!")
+                
+                # Summary
+                st.markdown("## 📊 Quality Analysis")
+                
+                avg_score = np.mean([r['Top Score'] for r in analysis])
+                avg_div = np.mean([r['Diversity'] for r in analysis])
+                excellent = sum(1 for r in analysis if r['Quality'] == 'EXCELLENT')
+                good_plus = sum(1 for r in analysis if r['Quality'] in ['EXCELLENT', 'GOOD'])
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Avg Top Score", f"{avg_score:.3f}")
+                c2.metric("Avg Diversity", f"{avg_div:.3f}")
+                c3.metric("Excellent", f"{excellent}/{len(analysis)}")
+                c4.metric("Good+", f"{good_plus}/{len(analysis)}")
+                
+                # Table
+                import pandas as pd
+                df = pd.DataFrame([{
+                    "Query": r["Query"],
+                    "Quality": f"{r['Emoji']} {r['Quality']}",
+                    "Score": f"{r['Top Score']:.3f}",
+                    "Diversity": f"{r['Diversity']:.3f}"
+                } for r in analysis])
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                
+                # Insights
+                st.markdown("### 💡 Insights")
+                if avg_score < 0.5:
+                    st.warning("📌 Low scores → Re-index with better chunking or use specific queries")
+                if avg_div < 0.2:
+                    st.warning("📌 Low diversity → Results too similar, adjust chunking")
+                if avg_div > 0.7:
+                    st.warning("📌 High diversity → Results may be unrelated")
+                if avg_score >= 0.5 and 0.2 <= avg_div <= 0.7:
+                    st.success("✅ Good search quality!")
+                
+                # Per-query details
+                with st.expander("🔍 Per-Query Details"):
+                    for r in analysis:
+                        st.markdown(f"**{r['Emoji']} {r['Query']}** - {r['Quality']}")
+                        c1, c2, c3 = st.columns(3)
+                        c1.metric("Top Score", f"{r['Top Score']:.3f}")
+                        c2.metric("Diversity", f"{r['Diversity']:.3f}")
+                        c3.metric("Results", r['Results'])
+                        st.markdown("---")
