@@ -1141,7 +1141,7 @@ def load_models():
     progress_container = st.container()
     
     with progress_container:
-        st.info("upload": "📂 Upload your contract to begin analysis")
+        st.info("📂 Upload your contract to begin analysis")
         progress_bar = st.progress(0)
         status_text = st.empty()
         
@@ -2219,5 +2219,6 @@ with tabs[4]:
                         c2.metric("Diversity", f"{r['Diversity']:.3f}")
                         c3.metric("Results", r['Results'])
                         st.markdown("---")
+
 
 
