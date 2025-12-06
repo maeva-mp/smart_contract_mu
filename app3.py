@@ -33,6 +33,7 @@ import re
 from rouge_score import rouge_scorer
 import spacy
 from spacy.pipeline import EntityRuler
+import time
 import matplotlib.pyplot as plt
 
 # Configuration
@@ -2218,6 +2219,7 @@ with tabs[4]:
                         c2.metric("Diversity", f"{r['Diversity']:.3f}")
                         c3.metric("Results", r['Results'])
                         st.markdown("---")
+
 
 
 
