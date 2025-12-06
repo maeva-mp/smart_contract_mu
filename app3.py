@@ -1141,13 +1141,13 @@ def load_models():
     progress_container = st.container()
     
     with progress_container:
-        st.info("📂 Upload your contract to begin analysis")
+        st.info("🧠 Initializing AI models")
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         try:
             # 1. Load Embedder
-            status_text.text("📥 Loading embedder model...")
+            status_text.text("📦 Loading sentence embedder..")
             progress_bar.progress(10)
             
             models['embedder'] = SentenceTransformer(
@@ -2219,6 +2219,7 @@ with tabs[4]:
                         c2.metric("Diversity", f"{r['Diversity']:.3f}")
                         c3.metric("Results", r['Results'])
                         st.markdown("---")
+
 
 
 
