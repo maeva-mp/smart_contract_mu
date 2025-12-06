@@ -1141,13 +1141,13 @@ def load_models():
     progress_container = st.container()
     
     with progress_container:
-        st.info("🧠 Initializing AI models")
+        st.info("🧠 Initializing AI models — this may take a few minutes on first run")
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         try:
             # 1. Load Embedder
-            status_text.text("📦 Loading sentence embedder..")
+            status_text.text("📦 Loading sentence embedder...")
             progress_bar.progress(10)
             
             models['embedder'] = SentenceTransformer(
@@ -1155,10 +1155,10 @@ def load_models():
                 cache_folder=str(CACHE_DIR)
             )
             progress_bar.progress(35)
-            status_text.text("✅ Embedder loaded")
+            status_text.text("✅ Embedder ready")
             
             # 2. Load Tokenizer
-            status_text.text("📥 Loading tokenizer...")
+            status_text.text("🔤 Loading tokenizer...")
             progress_bar.progress(45)
             
             models['tokenizer'] = T5TokenizerFast.from_pretrained(
@@ -1166,10 +1166,10 @@ def load_models():
                 cache_dir=str(CACHE_DIR)
             )
             progress_bar.progress(55)
-            status_text.text("✅ Tokenizer loaded")
+            status_text.text("✅ Tokenizer ready")
             
             # 3. Load Summarizer
-            status_text.text("📥 Loading summarizer model...")
+            status_text.text("📝 Loading summarizer model...")
             progress_bar.progress(60)
             
             models['summarizer'] = T5ForConditionalGeneration.from_pretrained(
@@ -1177,10 +1177,10 @@ def load_models():
                 cache_dir=str(CACHE_DIR)
             )
             progress_bar.progress(85)
-            status_text.text("✅ Summarizer loaded")
+            status_text.text("✅ Summarizer ready")
             
             # 4. Load SpaCy
-            status_text.text("📥 Loading spaCy NLP model...")
+            status_text.text("🔍 Loading spaCy NLP pipeline...")
             progress_bar.progress(90)
             
             models['nlp'] = load_spacy_model()
@@ -1188,7 +1188,6 @@ def load_models():
             status_text.text("✅ All models loaded successfully!")
             
             # Clean up progress indicators
-            import time
             time.sleep(1)
             progress_bar.empty()
             status_text.empty()
@@ -1200,7 +1199,7 @@ def load_models():
             raise e
     
     return models['embedder'], models['summarizer'], models['tokenizer'], models['nlp']
-
+    
 def index_documents(files: List[Tuple[str, bytes]]):
     """Index uploaded documents for search"""
     
@@ -2219,6 +2218,7 @@ with tabs[4]:
                         c2.metric("Diversity", f"{r['Diversity']:.3f}")
                         c3.metric("Results", r['Results'])
                         st.markdown("---")
+
 
 
 
